@@ -1,3 +1,4 @@
+'use client'
 // app/(dashboard)/shifts/components/StaffModal.tsx
 import { useState, useEffect } from 'react'
 import { Staff, STAFF_ROLES } from '../utils'

@@ -108,3 +108,10 @@ export function getDaysInMonth(year: number, month: number): Date[] {
   for (let d = 1; d <= count; d++) days.push(new Date(year, month, d))
   return days
 }
+
+export function roleGradient(role: string): string {
+  if (role === 'admin') return 'from-amber-400 to-orange-500'
+  if (role === 'instructor') return 'from-emerald-400 to-green-500'
+  if (role === 'cleaning') return 'from-purple-400 to-violet-500'
+  return 'from-sky-400 to-blue-500'
+}

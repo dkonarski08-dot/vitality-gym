@@ -1,6 +1,6 @@
 // app/(dashboard)/shifts/components/ShiftsCalendarGrid.tsx
 import { DAYS_BG_SHORT as DAYS_BG } from '@/lib/formatters'
-import { Staff, Shift, Holiday, getShiftDisplay } from '../utils'
+import { Staff, Shift, Holiday, getShiftDisplay, roleGradient } from '../utils'
 
 interface Props {
   staff: Staff[]
@@ -13,13 +13,6 @@ interface Props {
   getShift: (staffId: string, date: string) => Shift | undefined
   getHoliday: (date: string) => Holiday | undefined
   onCellClick: (staffId: string, date: string) => void
-}
-
-function roleGradient(role: string) {
-  if (role === 'admin') return 'from-amber-400 to-orange-500'
-  if (role === 'instructor') return 'from-emerald-400 to-green-500'
-  if (role === 'cleaning') return 'from-purple-400 to-violet-500'
-  return 'from-sky-400 to-blue-500'
 }
 
 function toDateStr(year: number, month: number, day: Date) {

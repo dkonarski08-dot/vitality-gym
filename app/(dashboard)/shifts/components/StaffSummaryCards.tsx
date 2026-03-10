@@ -1,5 +1,5 @@
 // app/(dashboard)/shifts/components/StaffSummaryCards.tsx
-import { Staff, STAFF_ROLES } from '../utils'
+import { Staff, STAFF_ROLES, roleGradient } from '../utils'
 import { StaffSummary } from '../hooks/useShifts'
 
 interface Props {
@@ -10,13 +10,6 @@ interface Props {
   onEdit: (s: Staff) => void
   onDragStart: (id: string) => void
   onDrop: (id: string) => void
-}
-
-function roleGradient(role: string) {
-  if (role === 'admin') return 'from-amber-400 to-orange-500'
-  if (role === 'instructor') return 'from-emerald-400 to-green-500'
-  if (role === 'cleaning') return 'from-purple-400 to-violet-500'
-  return 'from-sky-400 to-blue-500'
 }
 
 export function StaffSummaryCards({
