@@ -1,8 +1,9 @@
 // components/shifts/ReceptionistWeekView.tsx
 'use client'
 
+import { useMemo } from 'react'
 import { DAYS_BG_SHORT } from '@/lib/formatters'
-import { Staff, Shift, LEAVE_TYPES } from '@/app/(dashboard)/shifts/utils'
+import { Staff, Shift, LEAVE_TYPES, roleLeftBorder } from '@/app/(dashboard)/shifts/utils'
 
 interface Props {
   staff: Staff[]
@@ -15,13 +16,6 @@ interface Props {
 
 const LEAVE_TYPE_SET = new Set(LEAVE_TYPES.map(l => l.type))
 
-function roleLeftBorder(role: string): string {
-  if (role === 'admin') return 'border-l-amber-400'
-  if (role === 'instructor') return 'border-l-emerald-400'
-  if (role === 'cleaning') return 'border-l-violet-400'
-  // 'Reception' (capital R) and any unknown role → sky
-  return 'border-l-sky-400'
-}
 
 function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -53,19 +47,20 @@ function getWeeks(days: Date[]): Date[][] {
 
 export function ReceptionistWeekView({ staff, shifts, year, month, days, today }: Props) {
   const weeks = getWeeks(days)
-  const staffById = new Map(staff.map(s => [s.id, s]))
+  const staffById = useMemo(() => new Map(staff.map(s => [s.id, s])), [staff])
 
   // Build per-date shift list: exclude leave types, sort by start_time ascending
-  const shiftsByDate = new Map<string, Shift[]>()
-  for (const shift of shifts) {
-    if (LEAVE_TYPE_SET.has(shift.shift_type)) continue
-    const existing = shiftsByDate.get(shift.date) ?? []
-    existing.push(shift)
-    shiftsByDate.set(shift.date, existing)
-  }
-  for (const [date, dayShifts] of shiftsByDate) {
-    shiftsByDate.set(date, [...dayShifts].sort((a, b) => a.start_time.localeCompare(b.start_time)))
-  }
+  const shiftsByDate = useMemo(() => {
+    const map = new Map<string, Shift[]>()
+    for (const shift of shifts) {
+      if (LEAVE_TYPE_SET.has(shift.shift_type)) continue
+      map.set(shift.date, [...(map.get(shift.date) ?? []), shift])
+    }
+    for (const [date, dayShifts] of map) {
+      map.set(date, [...dayShifts].sort((a, b) => a.start_time.localeCompare(b.start_time)))
+    }
+    return map
+  }, [shifts])
 
   return (
     <div className="space-y-3">

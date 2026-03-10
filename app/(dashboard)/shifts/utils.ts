@@ -115,3 +115,11 @@ export function roleGradient(role: string): string {
   if (role === 'cleaning') return 'from-purple-400 to-violet-500'
   return 'from-sky-400 to-blue-500'
 }
+
+export function roleLeftBorder(role: string): string {
+  if (role === 'admin') return 'border-l-amber-400'
+  if (role === 'instructor') return 'border-l-emerald-400'
+  if (role === 'cleaning') return 'border-l-violet-400'
+  // 'Reception' (capital R) and any unknown role → sky
+  return 'border-l-sky-400'
+}
