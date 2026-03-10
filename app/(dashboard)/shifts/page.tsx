@@ -9,6 +9,7 @@ import { ShiftEditModal } from './components/ShiftEditModal'
 import { StaffModal } from './components/StaffModal'
 import { ShiftsSettingsModal } from './components/ShiftsSettingsModal'
 import { MissingShifts } from './components/MissingShifts'
+import { ReceptionistWeekView } from '@/components/shifts/ReceptionistWeekView'
 
 export default function ShiftsPage() {
   const s = useShifts()
@@ -39,36 +40,47 @@ export default function ShiftsPage() {
             <div className="w-5 h-5 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
           </div>
         ) : (<>
-          {s.reorderMode && (
-            <div className="mb-3 flex items-center gap-2 bg-amber-400/[0.04] border border-amber-400/10 rounded-xl px-4 py-2.5">
-              <span className="text-[11px] text-amber-400/80">↕ Плъзни картите за да промениш реда на служителите в таблицата</span>
-            </div>
-          )}
+          {s.userRole === 'receptionist' ? (
+            <ReceptionistWeekView
+              staff={s.staff}
+              shifts={s.shifts}
+              year={s.year}
+              month={s.month}
+              days={s.days}
+              today={s.today}
+            />
+          ) : (<>
+            {s.reorderMode && (
+              <div className="mb-3 flex items-center gap-2 bg-amber-400/[0.04] border border-amber-400/10 rounded-xl px-4 py-2.5">
+                <span className="text-[11px] text-amber-400/80">↕ Плъзни картите за да промениш реда на служителите в таблицата</span>
+              </div>
+            )}
 
-          <StaffSummaryCards
-            staffSummary={s.staffSummary}
-            reorderMode={s.reorderMode}
-            draggedStaffId={s.draggedStaffId}
-            userRole={s.userRole}
-            onEdit={s.setEditStaff}
-            onDragStart={s.setDraggedStaffId}
-            onDrop={s.handleReorderDrop}
-          />
+            <StaffSummaryCards
+              staffSummary={s.staffSummary}
+              reorderMode={s.reorderMode}
+              draggedStaffId={s.draggedStaffId}
+              userRole={s.userRole}
+              onEdit={s.setEditStaff}
+              onDragStart={s.setDraggedStaffId}
+              onDrop={s.handleReorderDrop}
+            />
 
-          <ShiftsCalendarGrid
-            staff={s.staff}
-            days={s.days}
-            year={s.year}
-            month={s.month}
-            today={s.today}
-            userRole={s.userRole}
-            editCell={s.editCell}
-            getShift={s.getShift}
-            getHoliday={s.getHoliday}
-            onCellClick={s.handleCellClick}
-          />
+            <ShiftsCalendarGrid
+              staff={s.staff}
+              days={s.days}
+              year={s.year}
+              month={s.month}
+              today={s.today}
+              userRole={s.userRole}
+              editCell={s.editCell}
+              getShift={s.getShift}
+              getHoliday={s.getHoliday}
+              onCellClick={s.handleCellClick}
+            />
 
-          <MissingShifts missingByDate={s.missingByDate} />
+            <MissingShifts missingByDate={s.missingByDate} />
+          </>)}
         </>)}
       </div>
 
