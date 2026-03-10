@@ -1,5 +1,6 @@
 // app/(dashboard)/hall/components/AttendanceTab.tsx
 import { HallAttendance, pctChange } from '../types'
+import type { HallAttendance as HallAttendanceHook } from '../hooks/useHallData'
 
 function PctBadge({ current, prev }: { current: number; prev: number }) {
   const pct = pctChange(current, prev)
@@ -29,15 +30,6 @@ interface PrevTotals {
   final_payment: number
 }
 
-interface EditValues {
-  visits_cash?: number
-  visits_subscription?: number
-  visits_multisport?: number
-  visits_coolfit?: number
-  instructor_percent?: number
-  adjustments?: number
-  total_revenue?: number
-}
 
 interface Props {
   attendance: HallAttendance[]
@@ -53,8 +45,8 @@ interface Props {
   restoringOriginal: boolean
   hasReconciliation: boolean
   editingId: string | null
-  editValues: EditValues
-  setEditValues: React.Dispatch<React.SetStateAction<EditValues>>
+  editValues: Partial<HallAttendanceHook>
+  setEditValues: React.Dispatch<React.SetStateAction<Partial<HallAttendanceHook>>>
   onRecalculate: () => void
   onApplyReconciliation: () => void
   onRestoreOriginal: () => void

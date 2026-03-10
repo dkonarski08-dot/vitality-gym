@@ -77,8 +77,8 @@ export type TabKey = 'attendance' | 'yearly' | 'reconciliation' | 'clients' | 'i
 
 export const MONTHS = ['Януари', 'Февруари', 'Март', 'Април', 'Май', 'Юни', 'Юли', 'Август', 'Септември', 'Октомври', 'Ноември', 'Декември']
 
-export function monthLabel(dateStr: string): string {
-  const d = new Date(dateStr)
+export function monthLabel(dateStr?: string): string {
+  const d = new Date(dateStr || new Date().toISOString())
   return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`
 }
 

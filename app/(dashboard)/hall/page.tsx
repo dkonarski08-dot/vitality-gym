@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useHallData } from './hooks/useHallData'
 import { useAttendance } from './hooks/useAttendance'
 import { useImport } from './hooks/useImport'
-import { TabKey } from './types'
+import { TabKey, monthLabel } from './types'
 import { HallHeader } from './components/HallHeader'
 import { AttendanceTab } from './components/AttendanceTab'
 import { YearlyTab } from './components/YearlyTab'
@@ -13,11 +13,6 @@ import { ClientsTab } from './components/ClientsTab'
 import { ImportTab } from './components/ImportTab'
 import { ConfigTab } from './components/ConfigTab'
 
-const MONTHS_LOCAL = ['Јануари', 'Февруари', 'Март', 'Април', 'Май', 'Юни', 'Юли', 'Август', 'Септември', 'Октомври', 'Ноември', 'Декември']
-function localMonthLabel(dateStr?: string): string {
-  const d = new Date(dateStr || new Date().toISOString())
-  return `${MONTHS_LOCAL[d.getMonth()]} ${d.getFullYear()}`
-}
 
 export default function HallPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('attendance')
@@ -60,7 +55,7 @@ export default function HallPage() {
     coolfitFile, setCoolfitFile,
     dragOver, setDragOver,
     handleImport, handleDrop,
-  } = useImport(selectedMonth, localMonthLabel, loadData, setActiveTab)
+  } = useImport(selectedMonth, monthLabel, loadData, setActiveTab)
 
   // Derived: attendance totals
   const totals = attendance.reduce((acc, r) => ({
@@ -103,6 +98,7 @@ export default function HallPage() {
     return ln >= periodFrom && ln <= periodTo
   })
   const newClients = allClients.filter(c => {
+    if (!periodFrom || !periodTo) return true
     const fs = c.first_seen?.substring(0, 7) || ''
     return fs >= periodFrom && fs <= periodTo
   })
