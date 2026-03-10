@@ -9,7 +9,7 @@ interface Props {
   showSuggestions: boolean
   setShowSuggestions: (v: boolean) => void
   searching: boolean
-  searchRef: React.RefObject<HTMLInputElement>
+  searchRef: React.RefObject<HTMLInputElement | null>
   draftItems: RequestItem[]
   filteredTop: Product[]
   availableCategories: string[]
