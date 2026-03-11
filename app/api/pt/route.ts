@@ -97,27 +97,108 @@ export async function GET(req: NextRequest) {
 
     // ── KPI stats for admin ──
     if (type === 'kpi') {
-      const period = searchParams.get('period') || 'month'
       const now = new Date()
+
+      // Determine current period bounds
       let start: string, end: string
-      if (period === 'month') {
-        start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-        end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
-      } else {
+      let prevStart: string, prevEnd: string
+
+      const monthParam = searchParams.get('month') // YYYY-MM
+      const yearParam = searchParams.get('year')   // YYYY
+      const period = searchParams.get('period')    // legacy: 'month' | 'year'
+
+      if (monthParam) {
+        const [y, m] = monthParam.split('-').map(Number)
+        start = new Date(y, m - 1, 1).toISOString()
+        end = new Date(y, m, 0, 23, 59, 59).toISOString()
+        // prev: one month back
+        const prevDate = new Date(y, m - 2, 1)
+        prevStart = new Date(prevDate.getFullYear(), prevDate.getMonth(), 1).toISOString()
+        prevEnd = new Date(prevDate.getFullYear(), prevDate.getMonth() + 1, 0, 23, 59, 59).toISOString()
+      } else if (yearParam) {
+        const y = parseInt(yearParam)
+        start = new Date(y, 0, 1).toISOString()
+        end = new Date(y, 11, 31, 23, 59, 59).toISOString()
+        prevStart = new Date(y - 1, 0, 1).toISOString()
+        prevEnd = new Date(y - 1, 11, 31, 23, 59, 59).toISOString()
+      } else if (period === 'year') {
+        // legacy compat
         start = new Date(now.getFullYear(), 0, 1).toISOString()
         end = new Date(now.getFullYear(), 11, 31, 23, 59, 59).toISOString()
+        prevStart = new Date(now.getFullYear() - 1, 0, 1).toISOString()
+        prevEnd = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59).toISOString()
+      } else {
+        // default: current month (legacy month compat)
+        start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
+        const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        prevStart = new Date(prevDate.getFullYear(), prevDate.getMonth(), 1).toISOString()
+        prevEnd = new Date(prevDate.getFullYear(), prevDate.getMonth() + 1, 0, 23, 59, 59).toISOString()
       }
-      const [sessionsRes, clientsRes, packagesRes] = await Promise.all([
+
+      // Fetch current period data
+      const [sessionsRes, clientsRes, packagesRes, inquiriesRes] = await Promise.all([
         supabase.from('pt_sessions')
           .select('id, status, instructor_id, client_id, duration_minutes, instructor:employees!pt_sessions_instructor_id_fkey(name), client:pt_clients(name)')
           .eq('gym_id', GYM_ID).gte('scheduled_at', start).lte('scheduled_at', end),
         supabase.from('pt_clients').select('id, instructor_id, active, created_at').eq('gym_id', GYM_ID),
-        supabase.from('pt_packages').select('id, instructor_id, client_id, total_sessions, used_sessions, price_total, active, expires_at, purchased_at, pt_clients(name)').eq('gym_id', GYM_ID),
+        supabase.from('pt_packages').select('id, instructor_id, client_id, total_sessions, used_sessions, price_total, active, expires_at, purchased_at, pt_clients(name)').eq('gym_id', GYM_ID).gte('purchased_at', start).lte('purchased_at', end),
+        supabase.from('pt_inquiries').select('id, outcome, source, created_at').eq('gym_id', GYM_ID).gte('created_at', start).lte('created_at', end),
       ])
+
+      // Fetch previous period data for trends (sessions + packages + inquiries only)
+      const [prevSessionsRes, prevPackagesRes, prevInquiriesRes] = await Promise.all([
+        supabase.from('pt_sessions')
+          .select('id, status, duration_minutes')
+          .eq('gym_id', GYM_ID).gte('scheduled_at', prevStart).lte('scheduled_at', prevEnd),
+        supabase.from('pt_packages')
+          .select('id, price_total')
+          .eq('gym_id', GYM_ID).gte('purchased_at', prevStart).lte('purchased_at', prevEnd),
+        supabase.from('pt_inquiries')
+          .select('id, outcome')
+          .eq('gym_id', GYM_ID).gte('created_at', prevStart).lte('created_at', prevEnd),
+      ])
+
+      // Monthly summary: last 6 months (always calendar months, independent of selected period)
+      // Includes `lost` count so the table can compute won/(won+lost) conversion correctly.
+      const monthlySummary: Array<{ month: string; inquiries: number; won: number; lost: number; revenue: number }> = []
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+        const mStart = new Date(d.getFullYear(), d.getMonth(), 1).toISOString()
+        const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59).toISOString()
+        const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+
+        const [mInq, mPkg] = await Promise.all([
+          supabase.from('pt_inquiries').select('id, outcome').eq('gym_id', GYM_ID).gte('created_at', mStart).lte('created_at', mEnd),
+          supabase.from('pt_packages').select('price_total').eq('gym_id', GYM_ID).gte('purchased_at', mStart).lte('purchased_at', mEnd),
+        ])
+        const inqData = mInq.data || []
+        const pkgData = mPkg.data || []
+        monthlySummary.push({
+          month: monthKey,
+          inquiries: inqData.length,
+          won: inqData.filter(i => i.outcome === 'won').length,
+          lost: inqData.filter(i => i.outcome === 'lost').length,
+          revenue: pkgData.reduce((a, p) => a + (p.price_total || 0), 0),
+        })
+      }
+
+      // All packages (no date filter) — for active client tracking, expiry alerts, instructor breakdown
+      const allPackagesRes = await supabase
+        .from('pt_packages')
+        .select('id, instructor_id, client_id, total_sessions, used_sessions, price_total, active, expires_at, purchased_at, pt_clients(name)')
+        .eq('gym_id', GYM_ID)
+
       return NextResponse.json({
         sessions: sessionsRes.data || [],
         clients: clientsRes.data || [],
-        packages: packagesRes.data || [],
+        packages: allPackagesRes.data || [],
+        period_packages: packagesRes.data || [],
+        inquiries: inquiriesRes.data || [],
+        prev_sessions: prevSessionsRes.data || [],
+        prev_packages: prevPackagesRes.data || [],
+        prev_inquiries: prevInquiriesRes.data || [],
+        monthly_summary: monthlySummary,
         period_start: start,
         period_end: end,
       })
