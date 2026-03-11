@@ -103,12 +103,11 @@ export async function GET(req: NextRequest) {
       let start: string, end: string
       let prevStart: string, prevEnd: string
 
-      const monthParam = searchParams.get('month') // YYYY-MM
       const yearParam = searchParams.get('year')   // YYYY
       const period = searchParams.get('period')    // legacy: 'month' | 'year'
 
-      if (monthParam) {
-        const [y, m] = monthParam.split('-').map(Number)
+      if (month) {
+        const [y, m] = month.split('-').map(Number)
         start = new Date(y, m - 1, 1).toISOString()
         end = new Date(y, m, 0, 23, 59, 59).toISOString()
         // prev: one month back
@@ -136,14 +135,17 @@ export async function GET(req: NextRequest) {
         prevEnd = new Date(prevDate.getFullYear(), prevDate.getMonth() + 1, 0, 23, 59, 59).toISOString()
       }
 
-      // Fetch current period data
-      const [sessionsRes, clientsRes, packagesRes, inquiriesRes] = await Promise.all([
+      // Fetch current period data (+ all packages in parallel)
+      const [sessionsRes, clientsRes, packagesRes, inquiriesRes, allPackagesRes] = await Promise.all([
         supabase.from('pt_sessions')
           .select('id, status, instructor_id, client_id, duration_minutes, instructor:employees!pt_sessions_instructor_id_fkey(name), client:pt_clients(name)')
           .eq('gym_id', GYM_ID).gte('scheduled_at', start).lte('scheduled_at', end),
         supabase.from('pt_clients').select('id, instructor_id, active, created_at').eq('gym_id', GYM_ID),
         supabase.from('pt_packages').select('id, instructor_id, client_id, total_sessions, used_sessions, price_total, active, expires_at, purchased_at, pt_clients(name)').eq('gym_id', GYM_ID).gte('purchased_at', start).lte('purchased_at', end),
         supabase.from('pt_inquiries').select('id, outcome, source, created_at').eq('gym_id', GYM_ID).gte('created_at', start).lte('created_at', end),
+        supabase.from('pt_packages')
+          .select('id, instructor_id, client_id, total_sessions, used_sessions, price_total, active, expires_at, purchased_at, pt_clients(name)')
+          .eq('gym_id', GYM_ID),
       ])
 
       // Fetch previous period data for trends (sessions + packages + inquiries only)
@@ -182,12 +184,6 @@ export async function GET(req: NextRequest) {
           revenue: pkgData.reduce((a, p) => a + (p.price_total || 0), 0),
         })
       }
-
-      // All packages (no date filter) — for active client tracking, expiry alerts, instructor breakdown
-      const allPackagesRes = await supabase
-        .from('pt_packages')
-        .select('id, instructor_id, client_id, total_sessions, used_sessions, price_total, active, expires_at, purchased_at, pt_clients(name)')
-        .eq('gym_id', GYM_ID)
 
       return NextResponse.json({
         sessions: sessionsRes.data || [],
