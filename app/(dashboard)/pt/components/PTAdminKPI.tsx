@@ -26,6 +26,14 @@ interface Props { selectedInstructor: string }
 
 const MONTH_NAMES_BG = ['Януари','Февруари','Март','Април','Май','Юни','Юли','Август','Септември','Октомври','Ноември','Декември']
 
+const SOURCE_CONFIG: Record<string, { label: string; color: string }> = {
+  facebook:  { label: '📘 Фейсбук',  color: '#4267B2' },
+  instagram: { label: '📸 Инстаграм', color: '#E1306C' },
+  google:    { label: '🔍 Гугъл',     color: '#fbbf24' },
+  friend:    { label: '👥 Приятел',   color: '#34d399' },
+  nearby:    { label: '📍 Наблизо',   color: '#a78bfa' },
+}
+
 export default function PTAdminKPI({ selectedInstructor }: Props) {
   const now = new Date()
   const [viewYear, setViewYear] = useState(now.getFullYear())
@@ -109,7 +117,6 @@ export default function PTAdminKPI({ selectedInstructor }: Props) {
 
   // Current period aggregations
   const completed = filteredSessions.filter(s => s.status === 'completed').length
-  const scheduled = filteredSessions.filter(s => s.status === 'scheduled').length
   const noShows = filteredSessions.filter(s => s.status === 'no_show').length
   const cancelledLate = filteredSessions.filter(s => s.status === 'cancelled_late').length
   const totalHours = filteredSessions.filter(s => s.status === 'completed').reduce((a, s) => a + s.duration_minutes / 60, 0)
@@ -141,18 +148,12 @@ export default function PTAdminKPI({ selectedInstructor }: Props) {
   const prevWon = prevInquiries.filter(i => i.outcome === 'won').length
   const prevClosed = prevInquiries.filter(i => i.outcome !== null).length
   const prevConvPct = prevClosed > 0 ? Math.round((prevWon / prevClosed) * 100) : 0
+  const convTrend = prevClosed > 0 ? trendPct(conversionPct, prevConvPct) : null
 
   // Source distribution
   const sourceMap: Record<string, number> = {}
   inquiries.forEach(i => { if (i.source) sourceMap[i.source] = (sourceMap[i.source] || 0) + 1 })
   const totalWithSource = Object.values(sourceMap).reduce((a, v) => a + v, 0)
-  const SOURCE_CONFIG: Record<string, { label: string; color: string }> = {
-    facebook:  { label: '📘 Фейсбук',  color: '#4267B2' },
-    instagram: { label: '📸 Инстаграм', color: '#E1306C' },
-    google:    { label: '🔍 Гугъл',     color: '#fbbf24' },
-    friend:    { label: '👥 Приятел',   color: '#34d399' },
-    nearby:    { label: '📍 Наблизо',   color: '#a78bfa' },
-  }
   const sortedSources = Object.entries(sourceMap).sort((a, b) => b[1] - a[1])
 
   // Renewal & expiring (unchanged)
@@ -285,9 +286,9 @@ export default function PTAdminKPI({ selectedInstructor }: Props) {
                 )}
               </div>
             </div>
-            {prevClosed > 0 && trendPct(conversionPct, prevConvPct) && (
+            {convTrend && (
               <div className={`text-xs font-semibold shrink-0 ${trendPositive(conversionPct, prevConvPct) ? 'text-emerald-400' : 'text-red-400'}`}>
-                {trendPct(conversionPct, prevConvPct)}
+                {convTrend}
               </div>
             )}
           </div>
