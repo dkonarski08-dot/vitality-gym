@@ -254,9 +254,6 @@ export default function PTAdminKPI({ selectedInstructor }: Props) {
                 <div className="mt-1.5 bg-amber-400/[0.03] border border-amber-400/10 rounded-xl overflow-hidden">
                   {expiringPackages.map(pkg => {
                     const daysLeft = Math.ceil((new Date(pkg.expires_at!).getTime() - Date.now()) / 86400000)
-                    const clientPkg = filteredPackages.find(p => p.id === pkg.id)
-                    // Try to get client name from clients list
-                    const clientEntry = clients.find(c => c.id === pkg.client_id)
                     // Get name from sessions that match this client
                     const sessionMatch = sessions.find(s => s.client_id === pkg.client_id)
                     const clientName = sessionMatch?.client?.name || `Клиент ${pkg.client_id.slice(0, 6)}`
@@ -331,7 +328,7 @@ export default function PTAdminKPI({ selectedInstructor }: Props) {
             Приходи от пакети — {navLabel}
           </div>
           <div className="text-3xl font-bold text-emerald-400">€{revenue.toFixed(0)}</div>
-          <div className="text-[11px] text-white/30 mt-1">{filteredPackages.length} продадени пакета</div>
+          <div className="text-[11px] text-white/30 mt-1">{periodPackages.filter(p => selectedInstructor === 'all' || p.instructor_id === selectedInstructor).length} продадени пакета</div>
         </div>
       )}
 
