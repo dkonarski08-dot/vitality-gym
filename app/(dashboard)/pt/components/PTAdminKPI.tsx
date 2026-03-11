@@ -144,7 +144,7 @@ export default function PTAdminKPI({ selectedInstructor }: Props) {
   const lostInquiries = inquiries.filter(i => i.outcome === 'lost').length
   const activeInquiries = inquiries.filter(i => i.outcome === null).length
   const closedInquiries = wonInquiries + lostInquiries
-  const conversionPct = closedInquiries > 0 ? Math.round((wonInquiries / closedInquiries) * 100) : 0
+  const conversionPct = inquiries.length > 0 ? Math.round((wonInquiries / inquiries.length) * 100) : 0
   const prevWon = prevInquiries.filter(i => i.outcome === 'won').length
   const prevClosed = prevInquiries.filter(i => i.outcome !== null).length
   const prevConvPct = prevClosed > 0 ? Math.round((prevWon / prevClosed) * 100) : 0
