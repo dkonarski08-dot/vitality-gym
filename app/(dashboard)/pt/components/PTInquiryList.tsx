@@ -9,10 +9,10 @@ export interface PTInquiry {
   name: string
   phone: string
   preferred_days: string[] | null
-  preferred_time_slot: string | null  // comma-separated: "morning", "morning,evening", etc.
+  preferred_time_slot: string | null
   goal: string | null
   notes: string | null
-  source: string | null               // ADD THIS
+  source: string | null
   status: 'pending' | 'done'
   outcome: 'won' | 'lost' | null
   lost_reason: string | null
@@ -59,12 +59,18 @@ function getAgeDays(createdAt: string): number {
   return Math.floor((Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24))
 }
 
+async function postInquiryAction(payload: Record<string, unknown>): Promise<void> {
+  await fetch('/api/pt', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
 export default function PTInquiryList({ inquiries, instructors, onRefresh }: Props) {
   const [filter, setFilter] = useState<'all' | 'pending' | 'done'>('all')
 
-  const filtered = inquiries.filter(i =>
-    filter === 'all' ? true : i.status === filter
-  )
+  const filtered = filter === 'all' ? inquiries : inquiries.filter(i => i.status === filter)
 
   const pendingCount = inquiries.filter(i => i.status === 'pending').length
   const wonCount = inquiries.filter(i => i.outcome === 'won').length
@@ -73,30 +79,18 @@ export default function PTInquiryList({ inquiries, instructors, onRefresh }: Pro
   const conversionPct = totalDone > 0 ? Math.round((wonCount / totalDone) * 100) : 0
 
   async function handleOutcome(id: string, outcome: 'won' | 'lost') {
-    await fetch('/api/pt', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'update_inquiry', inquiry_id: id, status: 'done', outcome }),
-    })
+    await postInquiryAction({ action: 'update_inquiry', inquiry_id: id, status: 'done', outcome })
     onRefresh()
   }
 
   async function handleReopen(id: string) {
-    await fetch('/api/pt', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'update_inquiry', inquiry_id: id, status: 'pending', outcome: null }),
-    })
+    await postInquiryAction({ action: 'update_inquiry', inquiry_id: id, status: 'pending', outcome: null })
     onRefresh()
   }
 
   async function handleDelete(id: string) {
     if (!confirm('Изтриване на запитването?')) return
-    await fetch('/api/pt', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'delete_inquiry', inquiry_id: id }),
-    })
+    await postInquiryAction({ action: 'delete_inquiry', inquiry_id: id })
     onRefresh()
   }
 

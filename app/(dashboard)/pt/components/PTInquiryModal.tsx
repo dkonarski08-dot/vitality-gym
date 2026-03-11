@@ -63,8 +63,9 @@ export default function PTInquiryModal({ instructors, userRole, userName, onClos
   const [saving, setSaving] = useState(false)
   const [phoneError, setPhoneError] = useState('')
 
-  const toggleDay = (day: string) =>
+  function toggleDay(day: string) {
     setPreferredDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day])
+  }
 
   function toggleTime(key: string) {
     setSelectedTimes(prev =>
@@ -72,10 +73,10 @@ export default function PTInquiryModal({ instructors, userRole, userName, onClos
     )
   }
 
-  const handleSave = async () => {
+  async function handleSave() {
     if (!name.trim()) return
     if (!phone.trim()) { setPhoneError('Телефонът е задължителен'); return }
-    if (phone && !validateBGPhone(phone)) {
+    if (!validateBGPhone(phone)) {
       setPhoneError('Невалиден БГ номер')
       return
     }

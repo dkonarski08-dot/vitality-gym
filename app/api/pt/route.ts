@@ -265,15 +265,12 @@ export async function POST(req: NextRequest) {
       const { error } = await supabase.from('pt_sessions').update(update).eq('id', session_id)
       if (error) throw error
 
-      if (session?.package_id) {
-        if (!wasCompleted && nowCompleted) {
-          // Increment used_sessions
-          const { data: pkg } = await supabase.from('pt_packages').select('used_sessions').eq('id', session.package_id).single()
-          if (pkg) await supabase.from('pt_packages').update({ used_sessions: pkg.used_sessions + 1 }).eq('id', session.package_id)
-        } else if (wasCompleted && !nowCompleted) {
-          // Decrement used_sessions
-          const { data: pkg } = await supabase.from('pt_packages').select('used_sessions').eq('id', session.package_id).single()
-          if (pkg && pkg.used_sessions > 0) await supabase.from('pt_packages').update({ used_sessions: pkg.used_sessions - 1 }).eq('id', session.package_id)
+      if (session?.package_id && wasCompleted !== nowCompleted) {
+        const delta = nowCompleted ? 1 : -1
+        const { data: pkg } = await supabase.from('pt_packages').select('used_sessions').eq('id', session.package_id).single()
+        if (pkg) {
+          const updated = Math.max(0, pkg.used_sessions + delta)
+          await supabase.from('pt_packages').update({ used_sessions: updated }).eq('id', session.package_id)
         }
       }
 
