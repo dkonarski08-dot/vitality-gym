@@ -1,0 +1,351 @@
+// app/api/pt/route.ts
+import { NextRequest, NextResponse } from 'next/server'
+import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin'
+import { GYM_ID } from '@/lib/constants'
+
+// ─── GET ────────────────────────────────────────────────────────────────────
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url)
+    const type = searchParams.get('type')
+    const instructorId = searchParams.get('instructor_id')
+    const month = searchParams.get('month') // YYYY-MM
+
+    // ── Instructors list ──
+    if (type === 'instructors') {
+      const { data } = await supabase
+        .from('employees')
+        .select('id, name, role')
+        .eq('active', true)
+        .in('role', ['instructor', 'admin'])
+        .order('name', { ascending: true })
+      return NextResponse.json({ instructors: data || [] })
+    }
+
+    // ── Clients (optionally filtered by instructor) ──
+    if (type === 'clients') {
+      const query = supabase
+        .from('pt_clients')
+        .select(`
+          *,
+          instructor:employees!pt_clients_instructor_id_fkey(id, name),
+          packages:pt_packages(id, total_sessions, used_sessions, expires_at, active, purchased_at, price_total)
+        `)
+        .eq('gym_id', GYM_ID)
+        .order('name', { ascending: true })
+      if (instructorId) query.eq('instructor_id', instructorId)
+      const { data, error } = await query
+      if (error) throw error
+      return NextResponse.json({ clients: data || [] })
+    }
+
+    // ── Sessions for a month ──
+    if (type === 'sessions' && month) {
+      const [y, m] = month.split('-').map(Number)
+      const start = new Date(y, m - 1, 1).toISOString()
+      const end = new Date(y, m, 0, 23, 59, 59).toISOString()
+      const query = supabase
+        .from('pt_sessions')
+        .select(`
+          *,
+          client:pt_clients(id, name, phone, goal),
+          instructor:employees!pt_sessions_instructor_id_fkey(id, name)
+        `)
+        .eq('gym_id', GYM_ID)
+        .gte('scheduled_at', start)
+        .lte('scheduled_at', end)
+        .order('scheduled_at', { ascending: true })
+      if (instructorId) query.eq('instructor_id', instructorId)
+      const { data, error } = await query
+      if (error) throw error
+      return NextResponse.json({ sessions: data || [] })
+    }
+
+    // ── Sessions for a week ──
+    if (type === 'sessions_week') {
+      const weekStart = searchParams.get('week_start') // YYYY-MM-DD
+      if (!weekStart) return NextResponse.json({ sessions: [] })
+      const start = new Date(weekStart + 'T00:00:00').toISOString()
+      const end = new Date(new Date(weekStart + 'T00:00:00').getTime() + 7 * 86400000).toISOString()
+      const query = supabase
+        .from('pt_sessions')
+        .select(`*, client:pt_clients(id, name, phone), instructor:employees!pt_sessions_instructor_id_fkey(id, name)`)
+        .eq('gym_id', GYM_ID)
+        .gte('scheduled_at', start)
+        .lt('scheduled_at', end)
+        .order('scheduled_at', { ascending: true })
+      if (instructorId) query.eq('instructor_id', instructorId)
+      const { data, error } = await query
+      if (error) throw error
+      return NextResponse.json({ sessions: data || [] })
+    }
+
+    // ── Single client detail ──
+    const clientId = searchParams.get('client_id')
+    if (clientId) {
+      const [clientRes, sessionsRes, packagesRes] = await Promise.all([
+        supabase.from('pt_clients').select('*, instructor:employees!pt_clients_instructor_id_fkey(id, name)').eq('id', clientId).single(),
+        supabase.from('pt_sessions').select('*').eq('client_id', clientId).order('scheduled_at', { ascending: false }).limit(100),
+        supabase.from('pt_packages').select('*').eq('client_id', clientId).order('purchased_at', { ascending: false }),
+      ])
+      return NextResponse.json({
+        client: clientRes.data,
+        sessions: sessionsRes.data || [],
+        packages: packagesRes.data || [],
+      })
+    }
+
+    // ── KPI stats for admin ──
+    if (type === 'kpi') {
+      const period = searchParams.get('period') || 'month'
+      const now = new Date()
+      let start: string, end: string
+      if (period === 'month') {
+        start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
+      } else {
+        start = new Date(now.getFullYear(), 0, 1).toISOString()
+        end = new Date(now.getFullYear(), 11, 31, 23, 59, 59).toISOString()
+      }
+      const [sessionsRes, clientsRes, packagesRes] = await Promise.all([
+        supabase.from('pt_sessions')
+          .select('id, status, instructor_id, client_id, duration_minutes, instructor:employees!pt_sessions_instructor_id_fkey(name), client:pt_clients(name)')
+          .eq('gym_id', GYM_ID).gte('scheduled_at', start).lte('scheduled_at', end),
+        supabase.from('pt_clients').select('id, instructor_id, active, created_at').eq('gym_id', GYM_ID),
+        supabase.from('pt_packages').select('id, instructor_id, client_id, total_sessions, used_sessions, price_total, active, expires_at, purchased_at, pt_clients(name)').eq('gym_id', GYM_ID),
+      ])
+      return NextResponse.json({
+        sessions: sessionsRes.data || [],
+        clients: clientsRes.data || [],
+        packages: packagesRes.data || [],
+        period_start: start,
+        period_end: end,
+      })
+    }
+
+    // ── Inquiries list ──
+    if (type === 'inquiries') {
+      const statusFilter = searchParams.get('status') // 'pending' | 'done' | null = all
+      const query = supabase
+        .from('pt_inquiries')
+        .select('*, assigned:employees!pt_inquiries_assigned_to_fkey(id, name)')
+        .eq('gym_id', GYM_ID)
+        .order('created_at', { ascending: false })
+      if (statusFilter) query.eq('status', statusFilter)
+      const { data, error } = await query
+      if (error) throw error
+      return NextResponse.json({ inquiries: data || [] })
+    }
+
+    return NextResponse.json({ error: 'Unknown type' }, { status: 400 })
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
+  }
+}
+
+// ─── POST ───────────────────────────────────────────────────────────────────
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json()
+    const { action } = body
+
+    // ── Add client ──
+    if (action === 'add_client') {
+      const { instructor_id, name, phone, email, goal, health_notes, preferred_days, preferred_time_slot } = body
+      if (!instructor_id || !name) return NextResponse.json({ error: 'Липсват данни' }, { status: 400 })
+      const { data, error } = await supabase.from('pt_clients').insert([{
+        gym_id: GYM_ID, instructor_id, name, phone, email, goal, health_notes, preferred_days, preferred_time_slot
+      }]).select().single()
+      if (error) throw error
+      return NextResponse.json({ success: true, client: data })
+    }
+
+    // ── Edit client ──
+    if (action === 'edit_client') {
+      const { client_id, name, phone, email, goal, health_notes, active, instructor_id, preferred_days, preferred_time_slot } = body
+      const { error } = await supabase.from('pt_clients')
+        .update({ name, phone, email, goal, health_notes, active, instructor_id, preferred_days, preferred_time_slot, updated_at: new Date().toISOString() })
+        .eq('id', client_id)
+      if (error) throw error
+      return NextResponse.json({ success: true })
+    }
+
+    // ── Add package ──
+    if (action === 'add_package') {
+      const { client_id, instructor_id, total_sessions, price_total, purchased_at, expires_at, notes, starts_on, duration_months } = body
+      if (!client_id || !total_sessions) return NextResponse.json({ error: 'Липсват данни' }, { status: 400 })
+      // Deactivate previous active package for this client
+      await supabase.from('pt_packages').update({ active: false }).eq('client_id', client_id).eq('active', true)
+      const { data, error } = await supabase.from('pt_packages').insert([{
+        gym_id: GYM_ID, client_id, instructor_id, total_sessions, used_sessions: 0,
+        price_total, purchased_at: purchased_at || new Date().toISOString().split('T')[0],
+        expires_at, notes, active: true, starts_on, duration_months
+      }]).select().single()
+      if (error) throw error
+      return NextResponse.json({ success: true, package: data })
+    }
+
+    // ── Add single session ──
+    if (action === 'add_session') {
+      const { instructor_id, client_id, package_id, scheduled_at, duration_minutes,
+              session_type, location, notes, created_by } = body
+      if (!instructor_id || !client_id || !scheduled_at)
+        return NextResponse.json({ error: 'Липсват данни' }, { status: 400 })
+      const { data, error } = await supabase.from('pt_sessions').insert([{
+        gym_id: GYM_ID, instructor_id, client_id, package_id,
+        scheduled_at, duration_minutes: duration_minutes || 60,
+        session_type: session_type || 'personal',
+        status: 'scheduled', location, notes, created_by
+      }]).select('*, client:pt_clients(id, name), instructor:employees!pt_sessions_instructor_id_fkey(id, name)').single()
+      if (error) throw error
+      return NextResponse.json({ success: true, session: data })
+    }
+
+    // ── Add recurring sessions ──
+    if (action === 'add_recurring') {
+      const { instructor_id, client_id, package_id, day_of_week, time_of_day,
+              duration_minutes, session_type, location, starts_on, ends_on, created_by } = body
+      const groupId = crypto.randomUUID()
+      const rows = []
+
+      // Save template for reference
+      await supabase.from('pt_recurrence_templates').insert([{
+        gym_id: GYM_ID, instructor_id, client_id, package_id,
+        day_of_week, time_of_day, duration_minutes, session_type, location,
+        starts_on, ends_on, active: true
+      }])
+
+      const start = new Date(starts_on + 'T12:00:00')
+      const end = ends_on ? new Date(ends_on + 'T12:00:00') : new Date(start.getTime() + 90 * 86400000)
+      const cur = new Date(start)
+      // Advance to the first occurrence of the requested weekday
+      while (cur.getDay() !== day_of_week) cur.setDate(cur.getDate() + 1)
+
+      while (cur <= end) {
+        const [h, m] = (time_of_day as string).split(':').map(Number)
+        const sessionDate = new Date(cur)
+        sessionDate.setHours(h, m, 0, 0)
+        rows.push({
+          gym_id: GYM_ID, instructor_id, client_id, package_id,
+          scheduled_at: sessionDate.toISOString(),
+          duration_minutes: duration_minutes || 60,
+          session_type: session_type || 'personal',
+          status: 'scheduled', location, created_by,
+          recurrence_group_id: groupId
+        })
+        cur.setDate(cur.getDate() + 7)
+      }
+
+      if (rows.length > 0) {
+        const { error } = await supabase.from('pt_sessions').insert(rows)
+        if (error) throw error
+      }
+      return NextResponse.json({ success: true, count: rows.length, group_id: groupId })
+    }
+
+    // ── Update session (status, notes, reschedule) ──
+    if (action === 'update_session') {
+      const { session_id, status, notes, scheduled_at, duration_minutes, location } = body
+      const update: Record<string, unknown> = { updated_at: new Date().toISOString() }
+      if (status !== undefined) update.status = status
+      if (notes !== undefined) update.notes = notes
+      if (scheduled_at !== undefined) update.scheduled_at = scheduled_at
+      if (duration_minutes !== undefined) update.duration_minutes = duration_minutes
+      if (location !== undefined) update.location = location
+      if (['cancelled_early', 'cancelled_late', 'no_show'].includes(status ?? '')) {
+        update.cancelled_at = new Date().toISOString()
+        if (body.cancelled_by) update.cancelled_by = body.cancelled_by
+      }
+
+      // Handle package session counter
+      const { data: session } = await supabase.from('pt_sessions').select('status, package_id').eq('id', session_id).single()
+      const wasCompleted = session?.status === 'completed'
+      const nowCompleted = status === 'completed'
+
+      const { error } = await supabase.from('pt_sessions').update(update).eq('id', session_id)
+      if (error) throw error
+
+      if (session?.package_id) {
+        if (!wasCompleted && nowCompleted) {
+          // Increment used_sessions
+          const { data: pkg } = await supabase.from('pt_packages').select('used_sessions').eq('id', session.package_id).single()
+          if (pkg) await supabase.from('pt_packages').update({ used_sessions: pkg.used_sessions + 1 }).eq('id', session.package_id)
+        } else if (wasCompleted && !nowCompleted) {
+          // Decrement used_sessions
+          const { data: pkg } = await supabase.from('pt_packages').select('used_sessions').eq('id', session.package_id).single()
+          if (pkg && pkg.used_sessions > 0) await supabase.from('pt_packages').update({ used_sessions: pkg.used_sessions - 1 }).eq('id', session.package_id)
+        }
+      }
+
+      return NextResponse.json({ success: true })
+    }
+
+    // ── Delete session ──
+    if (action === 'delete_session') {
+      const { session_id } = body
+      const { error } = await supabase.from('pt_sessions').delete().eq('id', session_id)
+      if (error) throw error
+      return NextResponse.json({ success: true })
+    }
+
+    // ── Edit package used_sessions (admin only) ──
+    if (action === 'edit_package_used') {
+      const { package_id, used_sessions } = body
+      if (package_id === undefined || used_sessions === undefined)
+        return NextResponse.json({ error: 'Липсват данни' }, { status: 400 })
+      const { error } = await supabase.from('pt_packages')
+        .update({ used_sessions: Math.max(0, Number(used_sessions)) })
+        .eq('id', package_id)
+      if (error) throw error
+      return NextResponse.json({ success: true })
+    }
+
+    // ── Delete recurring group (from a date onwards) ──
+    if (action === 'delete_recurring') {
+      const { group_id, from_date } = body
+      let query = supabase.from('pt_sessions').delete().eq('recurrence_group_id', group_id).eq('status', 'scheduled')
+      if (from_date) query = query.gte('scheduled_at', from_date)
+      const { error } = await query
+      if (error) throw error
+      return NextResponse.json({ success: true })
+    }
+
+    // ── Add inquiry ──
+    if (action === 'add_inquiry') {
+      const { name, phone, preferred_days, preferred_time_slot, goal, notes, created_by, assigned_to, source } = body
+      if (!name || !phone) return NextResponse.json({ error: 'Липсват данни' }, { status: 400 })
+      const { data, error } = await supabase.from('pt_inquiries').insert([{
+        gym_id: GYM_ID, name, phone, preferred_days, preferred_time_slot, goal, notes, source,
+        created_by, assigned_to: assigned_to || null, status: 'pending'
+      }]).select().single()
+      if (error) throw error
+      return NextResponse.json({ success: true, inquiry: data })
+    }
+
+    // ── Update inquiry ──
+    if (action === 'update_inquiry') {
+      const { inquiry_id, status, outcome, lost_reason, notes, assigned_to } = body
+      const update: Record<string, unknown> = { updated_at: new Date().toISOString() }
+      if (status !== undefined) update.status = status
+      if (outcome !== undefined) update.outcome = outcome
+      if (lost_reason !== undefined) update.lost_reason = lost_reason
+      if (notes !== undefined) update.notes = notes
+      if (assigned_to !== undefined) update.assigned_to = assigned_to
+      const { error } = await supabase.from('pt_inquiries').update(update).eq('id', inquiry_id)
+      if (error) throw error
+      return NextResponse.json({ success: true })
+    }
+
+    // ── Delete inquiry ──
+    if (action === 'delete_inquiry') {
+      const { inquiry_id } = body
+      const { error } = await supabase.from('pt_inquiries').delete().eq('id', inquiry_id)
+      if (error) throw error
+      return NextResponse.json({ success: true })
+    }
+
+    return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
+  }
+}
