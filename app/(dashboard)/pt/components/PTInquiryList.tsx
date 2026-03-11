@@ -36,6 +36,11 @@ const TIME_SLOT_LABELS: Record<string, string> = {
   evening: '🌙 Вечер',
 }
 
+const DAY_LABELS: Record<string, string> = {
+  monday: 'Пн', tuesday: 'Вт', wednesday: 'Ср',
+  thursday: 'Чт', friday: 'Пт', saturday: 'Сб', sunday: 'Нд',
+}
+
 const GOAL_LABELS: Record<string, string> = {
   weight_loss: '⚖️ Отслабване',
   muscle: '💪 Мускулна маса',
@@ -128,7 +133,7 @@ export default function PTInquiryList({ inquiries, instructors, onRefresh }: Pro
               filter === f ? 'bg-amber-400/15 text-amber-400' : 'text-white/40 hover:text-white/70'
             }`}
           >
-            {f === 'all' ? 'Всички' : f === 'pending' ? 'Активни' : 'Приключени'}
+            {f === 'all' ? 'Всички' : f === 'pending' ? 'За обработка' : 'Приключени'}
           </button>
         ))}
       </div>
@@ -177,7 +182,7 @@ export default function PTInquiryList({ inquiries, instructors, onRefresh }: Pro
                     ) : (
                       <div className="flex flex-wrap gap-1">
                         {days.map(d => (
-                          <span key={d} className="px-1.5 py-0.5 rounded text-[11px] bg-amber-400/10 border border-amber-400/25 text-amber-400 font-medium">{d}</span>
+                          <span key={d} className="px-1.5 py-0.5 rounded text-[11px] bg-amber-400/10 border border-amber-400/25 text-amber-400 font-medium">{DAY_LABELS[d] ?? d}</span>
                         ))}
                       </div>
                     )}
