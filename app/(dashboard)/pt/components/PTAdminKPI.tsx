@@ -263,7 +263,7 @@ export default function PTAdminKPI({ selectedInstructor }: Props) {
               <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1">Спечелени клиенти</div>
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-bold text-emerald-400">{conversionPct}%</span>
-                <span className="text-[11px] text-white/35">{wonInquiries} от {closedInquiries} запитвания</span>
+                <span className="text-[11px] text-white/35">{wonInquiries} от {inquiries.length} запитвания</span>
               </div>
               <div className="flex items-center gap-4 mt-1.5 text-[11px]">
                 <span className="flex items-center gap-1.5">
@@ -342,7 +342,7 @@ export default function PTAdminKPI({ selectedInstructor }: Props) {
               </tr>
             </thead>
             <tbody>
-              {[...monthlySummary].reverse().map(row => {
+              {[...monthlySummary].reverse().slice(0, 6).map(row => {
                 const [y, m] = row.month.split('-').map(Number)
                 const isCurrent = y === viewYear && (m - 1) === viewMonth
                 const rowClosed = row.won + row.lost
