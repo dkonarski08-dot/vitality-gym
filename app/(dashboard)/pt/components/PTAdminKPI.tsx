@@ -195,31 +195,174 @@ export default function PTAdminKPI({ selectedInstructor }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Month/year navigation */}
+      {/* ── Month / Year navigation ── */}
       <div className="flex items-center gap-2">
-        <button onClick={goBack} className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/5 border border-white/[0.08] text-white/50 hover:text-white/80 hover:bg-white/10 transition-all text-xs">‹</button>
-        <span className="text-sm font-medium text-white/80 min-w-[120px] text-center">{navLabel}</span>
-        <button onClick={goForward} disabled={isAtPresent} className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/5 border border-white/[0.08] text-white/50 hover:text-white/80 hover:bg-white/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed text-xs">›</button>
-        <button onClick={toggleYearView} className={`ml-1 px-3 h-7 rounded-lg text-xs font-medium border transition-all ${viewMonth === null ? 'bg-amber-400/10 text-amber-400 border-amber-400/20' : 'bg-white/5 text-white/50 border-white/[0.08]'}`}>
-          {viewMonth === null ? 'Година' : 'По месец'}
+        <button onClick={goBack}
+          className="w-8 h-8 rounded-lg bg-white/5 border border-white/[0.08] flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white text-sm transition-all">
+          ‹
+        </button>
+        <div className="flex-1 flex items-center justify-center h-8 rounded-lg bg-white/[0.03] border border-white/[0.07] px-3">
+          <span className="text-sm font-semibold text-white/80">{navLabel}</span>
+        </div>
+        <button onClick={goForward} disabled={isAtPresent}
+          className="w-8 h-8 rounded-lg bg-white/5 border border-white/[0.08] flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white text-sm transition-all disabled:opacity-30 disabled:cursor-not-allowed">
+          ›
+        </button>
+        <button onClick={toggleYearView}
+          className={`px-3 h-8 rounded-lg text-xs font-semibold border transition-all ${
+            viewMonth === null
+              ? 'bg-amber-400/15 text-amber-400 border-amber-400/30'
+              : 'bg-white/[0.03] text-white/50 border-white/[0.08] hover:text-white/70'
+          }`}>
+          {viewYear}
         </button>
       </div>
 
-      {/* Main KPI cards */}
+      {/* ── KPI cards with trends ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          { label: 'Проведени', value: completed, sub: `${totalHours.toFixed(0)}ч общо`, color: 'text-emerald-400' },
-          { label: 'Предстоящи', value: scheduled, sub: 'тренировки', color: 'text-amber-400' },
-          { label: 'Неявявания', value: noShows, sub: `${noShowRate}% от всички`, color: noShows > 0 ? 'text-red-400' : 'text-white/40' },
-          { label: 'Активни клиенти', value: activeClients, sub: 'общо', color: 'text-sky-400' },
-        ].map(kpi => (
+        {([
+          {
+            label: 'Проведени', value: completed,
+            sub: `${totalHours.toFixed(0)}ч общо`, color: 'text-emerald-400',
+            trend: trendPct(completed, prevCompleted), trendUp: trendPositive(completed, prevCompleted),
+          },
+          {
+            label: 'Приходи', value: `€${revenue.toFixed(0)}`,
+            sub: `${periodPackages.filter(p => selectedInstructor === 'all' || p.instructor_id === selectedInstructor).length} пакета`, color: 'text-emerald-400',
+            trend: trendPct(revenue, prevRevenue), trendUp: trendPositive(revenue, prevRevenue),
+          },
+          {
+            label: 'Неявявания', value: noShows,
+            sub: `${noShowRate}% от всички`, color: noShows > 0 ? 'text-red-400' : 'text-white/40',
+            trend: trendPct(noShows, prevNoShows), trendUp: noShows <= prevNoShows,
+          },
+          {
+            label: 'Активни клиенти', value: activeClients,
+            sub: 'общо', color: 'text-sky-400',
+            trend: null as string | null, trendUp: true,
+          },
+        ] as const).map(kpi => (
           <div key={kpi.label} className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4">
             <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1">{kpi.label}</div>
             <div className={`text-2xl font-bold ${kpi.color}`}>{kpi.value}</div>
             <div className="text-[11px] text-white/30 mt-0.5">{kpi.sub}</div>
+            {kpi.trend && (
+              <div className={`text-[10px] font-semibold mt-1 ${kpi.trendUp ? 'text-emerald-400' : 'text-red-400'}`}>
+                {kpi.trend}
+              </div>
+            )}
           </div>
         ))}
       </div>
+
+      {/* ── Спечелени клиенти (Conversion) ── */}
+      {inquiries.length > 0 && (
+        <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1">Спечелени клиенти</div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-bold text-emerald-400">{conversionPct}%</span>
+                <span className="text-[11px] text-white/35">{wonInquiries} от {closedInquiries} запитвания</span>
+              </div>
+              <div className="flex items-center gap-4 mt-1.5 text-[11px]">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+                  <span className="text-emerald-400 font-semibold">{wonInquiries}</span>
+                  <span className="text-white/35">спечелени</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block" />
+                  <span className="text-red-400 font-semibold">{lostInquiries}</span>
+                  <span className="text-white/35">загубени</span>
+                </span>
+                {activeInquiries > 0 && (
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                    <span className="text-amber-400 font-semibold">{activeInquiries}</span>
+                    <span className="text-white/35">активни</span>
+                  </span>
+                )}
+              </div>
+            </div>
+            {prevClosed > 0 && trendPct(conversionPct, prevConvPct) && (
+              <div className={`text-xs font-semibold shrink-0 ${trendPositive(conversionPct, prevConvPct) ? 'text-emerald-400' : 'text-red-400'}`}>
+                {trendPct(conversionPct, prevConvPct)}
+              </div>
+            )}
+          </div>
+          {closedInquiries > 0 && (
+            <div className="mt-3 h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all"
+                style={{ width: `${conversionPct}%` }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Откъде разбраха за нас ── */}
+      {sortedSources.length > 0 && (
+        <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4">
+          <div className="text-[10px] text-white/40 uppercase tracking-wider mb-3">Откъде разбраха за нас</div>
+          <div className="space-y-2.5">
+            {sortedSources.map(([key, count]) => {
+              const cfg = SOURCE_CONFIG[key] || { label: key, color: '#ffffff' }
+              const pct = totalWithSource > 0 ? Math.round((count / totalWithSource) * 100) : 0
+              return (
+                <div key={key} className="flex items-center gap-3">
+                  <span className="text-[11px] text-white/55 w-[90px] shrink-0">{cfg.label}</span>
+                  <div className="flex-1 h-[5px] bg-white/[0.05] rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${pct}%`, background: cfg.color, opacity: 0.75 }}
+                    />
+                  </div>
+                  <span className="text-[11px] text-white/40 w-8 text-right shrink-0">{pct}%</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Последни 6 месеца (month view only) ── */}
+      {viewMonth !== null && monthlySummary.length > 0 && (
+        <div className="bg-white/[0.02] border border-white/[0.06] rounded-2xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-white/[0.06]">
+            <span className="text-[10px] text-white/40 uppercase tracking-wider">Последни 6 месеца</span>
+          </div>
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="border-b border-white/[0.06]">
+                {['Месец', 'Запитвания', 'Спечелени', 'Конв.', 'Приходи'].map(h => (
+                  <th key={h} className="px-4 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-white/30">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[...monthlySummary].reverse().map(row => {
+                const [y, m] = row.month.split('-').map(Number)
+                const isCurrent = y === viewYear && (m - 1) === viewMonth
+                const rowClosed = row.won + row.lost
+                const rowConv = rowClosed > 0 ? Math.round((row.won / rowClosed) * 100) : 0
+                return (
+                  <tr key={row.month} className={`border-b border-white/[0.04] last:border-0 ${isCurrent ? '' : 'opacity-60'}`}>
+                    <td className={`px-4 py-2.5 text-xs ${isCurrent ? 'text-white font-semibold' : 'text-white/70'}`}>
+                      {MONTH_NAMES_BG[m - 1].slice(0, 3)} {y}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-white/60">{row.inquiries}</td>
+                    <td className="px-4 py-2.5 text-xs font-semibold text-emerald-400">{row.won}</td>
+                    <td className="px-4 py-2.5 text-xs font-semibold text-amber-400">{rowConv}%</td>
+                    <td className="px-4 py-2.5 text-xs text-emerald-400">€{row.revenue.toFixed(0)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Alerts row */}
       {(renewalNeeded > 0 || expiringPackages.length > 0 || cancelledLate > 0) && (
@@ -325,7 +468,7 @@ export default function PTAdminKPI({ selectedInstructor }: Props) {
       {revenue > 0 && (
         <div className="bg-white/[0.02] border border-white/[0.06] rounded-2xl p-4">
           <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1">
-            Приходи от пакети — {navLabel}
+            Приходи от пакети — {viewMonth !== null ? 'месец' : 'година'}
           </div>
           <div className="text-3xl font-bold text-emerald-400">€{revenue.toFixed(0)}</div>
           <div className="text-[11px] text-white/30 mt-1">{periodPackages.filter(p => selectedInstructor === 'all' || p.instructor_id === selectedInstructor).length} продадени пакета</div>
