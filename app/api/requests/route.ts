@@ -72,7 +72,16 @@ export async function GET(req: NextRequest) {
         .map(([supplier_name, products]) => ({ supplier_name, product_count: products.size }))
         .sort((a, b) => b.product_count - a.product_count)
 
-      return NextResponse.json({ suppliers })
+      // Deduplicate by case-insensitive name (defensive guard)
+      const seen = new Set<string>()
+      const uniqueSuppliers = suppliers.filter(s => {
+        const key = s.supplier_name.toLowerCase().trim()
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+
+      return NextResponse.json({ suppliers: uniqueSuppliers })
     }
 
     // Products by supplier — two-step: delivery IDs → distinct product_names
