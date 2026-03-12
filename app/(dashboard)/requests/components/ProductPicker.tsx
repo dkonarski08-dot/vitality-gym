@@ -115,31 +115,45 @@ export function ProductPicker({ topProducts, draftItems, onAddProduct }: Props) 
           </div>
         )}
 
-        {showSuggestions && suggestions.length > 0 && (
+        {showSuggestions && !searching && (
           <div className="absolute top-full left-0 right-0 mt-1 bg-[#0f0f14] border border-white/10 rounded-xl shadow-2xl z-20 overflow-hidden">
-            {suggestions.map(p => (
-              <button
-                key={p.id}
-                onClick={() => handleAddFromSuggestion(p)}
-                className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors text-left"
-              >
-                <div>
-                  <div className="text-sm text-white">{p.clean_name ?? p.name}</div>
-                  <div className="text-[10px] text-white/30">{p.category} · {p.unit}</div>
-                </div>
-                <div className="text-right shrink-0 ml-4">
-                  {p.last_price && <div className="text-xs text-white/50">{p.last_price.toFixed(2)}€</div>}
-                  <div className="text-[10px] text-white/25">{p.order_count}×</div>
-                </div>
-              </button>
-            ))}
-            {search.trim() && !suggestions.some(s => (s.clean_name ?? s.name).toLowerCase() === search.toLowerCase()) && (
-              <button
-                onClick={() => { onAddProduct(search.trim(), 'бр', null); setSearch(''); setShowSuggestions(false) }}
-                className="w-full flex items-center px-4 py-3 hover:bg-white/5 text-left border-t border-white/[0.06]"
-              >
-                <span className="text-xs text-amber-400">+ Добави &quot;{search}&quot; като нов продукт</span>
-              </button>
+            {suggestions.length > 0 ? (
+              <>
+                {suggestions.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => handleAddFromSuggestion(p)}
+                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors text-left"
+                  >
+                    <div>
+                      <div className="text-sm text-white">{p.clean_name ?? p.name}</div>
+                      <div className="text-[10px] text-white/30">{p.category} · {p.unit}</div>
+                    </div>
+                    <div className="text-right shrink-0 ml-4">
+                      {p.last_price && <div className="text-xs text-white/50">{p.last_price.toFixed(2)}€</div>}
+                      <div className="text-[10px] text-white/25">{p.order_count}×</div>
+                    </div>
+                  </button>
+                ))}
+                {search.trim() && !suggestions.some(s => (s.clean_name ?? s.name).toLowerCase() === search.toLowerCase()) && (
+                  <button
+                    onClick={() => { onAddProduct(search.trim(), 'бр', null); setSearch(''); setShowSuggestions(false) }}
+                    className="w-full flex items-center px-4 py-3 hover:bg-white/5 text-left border-t border-white/[0.06]"
+                  >
+                    <span className="text-xs text-amber-400">+ Добави &quot;{search}&quot; като нов продукт</span>
+                  </button>
+                )}
+              </>
+            ) : (
+              <div className="px-4 py-3">
+                <div className="text-xs text-white/40 mb-2">Няма намерени продукти за &quot;{search}&quot;</div>
+                <button
+                  onClick={() => { onAddProduct(search.trim(), 'бр', null); setSearch(''); setShowSuggestions(false) }}
+                  className="text-xs text-amber-400 hover:text-amber-300 transition-colors"
+                >
+                  + Добави &quot;{search}&quot; ръчно
+                </button>
+              </div>
             )}
           </div>
         )}
