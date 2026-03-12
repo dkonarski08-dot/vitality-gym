@@ -3,7 +3,7 @@ import { NavItem } from '@/src/types/database'
 
 export const NAV_ITEMS: NavItem[] = [
   // Admin + Staff shared
-  { key: 'hall', label: 'Vitality Hall', icon: '🏋️', href: '/hall', roles: ['admin', 'instructor'] },
+  { key: 'hall', label: 'Vitality Hall', icon: '🏋️', href: '/hall', roles: ['admin'] },
   { key: 'shifts', label: 'Смени', icon: '📅', href: '/shifts', roles: ['admin', 'receptionist', 'instructor'] },
   { key: 'pt', label: 'График ПТ', icon: '💪', href: '/pt', roles: ['admin', 'receptionist', 'instructor'] },
   { key: 'notes', label: 'Бележки', icon: '📝', href: '/notes', roles: ['admin', 'receptionist'] },
@@ -24,6 +24,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: 'reports', label: 'Отчети', icon: '📊', href: '/reports', roles: ['admin'] },
   { key: 'email', label: 'Имейл кампании', icon: '📧', href: '/email', roles: ['admin'] },
   { key: 'reviews', label: 'Google Reviews', icon: '⭐', href: '/reviews', roles: ['admin'] },
+  { key: 'users', label: 'Потребители', icon: '👤', href: '/users', roles: ['admin'] },
   { key: 'settings', label: 'Настройки', icon: '⚙️', href: '/settings', roles: ['admin'] },
   
 ]
