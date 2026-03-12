@@ -9,8 +9,9 @@ export const NAV_ITEMS: NavItem[] = [
   { key: 'notes', label: 'Бележки', icon: '📝', href: '/notes', roles: ['admin', 'receptionist'] },
 
   // Receptionist tools
-  { key: 'cash', label: 'Дневна каса — Фитнес', icon: '💶', href: '/cash', roles: ['admin', 'receptionist'] },
-  { key: 'hall-cash', label: 'Дневна каса — Зала', icon: '🎽', href: '/hall-cash', roles: ['admin', 'receptionist'] },
+  { key: 'cash', label: 'Дневна каса — Фитнес', icon: '💶', href: '/cash', roles: ['admin'] },
+  { key: 'hall-cash', label: 'Дневна каса — Зала', icon: '🎽', href: '/hall-cash', roles: ['admin'] },
+  { key: 'daily-report', label: 'Дневен отчет', icon: '🗒️', href: '/daily-report', roles: ['receptionist'] },
   { key: 'deliveries', label: 'Доставки', icon: '📦', href: '/deliveries', roles: ['admin', 'receptionist'] },
   { key: 'requests', label: 'Заявки', icon: '📋', href: '/requests', roles: ['admin', 'receptionist'] },
   { key: 'violations', label: 'Нарушения', icon: '⚠️', href: '/violations', roles: ['admin', 'receptionist'] },
