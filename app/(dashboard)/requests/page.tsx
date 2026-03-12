@@ -43,13 +43,11 @@ export default function RequestsPage() {
             </div>
             <div className="lg:col-span-1">
               <DraftPanel
-                draftItems={r.draftItems}
-                draftNotes={r.draftNotes}
-                setDraftNotes={r.setDraftNotes}
+                items={r.draftItems}
+                notes={r.draftNotes}
+                setNotes={r.setDraftNotes}
                 saving={r.saving}
                 submitting={r.submitting}
-                aiSuggestion={r.aiSuggestion}
-                setAiSuggestion={r.setAiSuggestion}
                 onUpdateQty={r.updateQty}
                 onRemoveItem={r.removeItem}
                 onSave={r.handleSave}
