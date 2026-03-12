@@ -73,6 +73,9 @@ export function ProductPicker({ topProducts, draftItems, onAddProduct }: Props) 
         setSearching(false)
       }
     }, 250)
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
   }, [search])
 
   const handleAddFromSuggestion = (p: DeliveryProduct) => {

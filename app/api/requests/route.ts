@@ -11,12 +11,14 @@ export async function GET(req: NextRequest) {
     // Autocomplete search — searches name AND clean_name
     if (type === 'search') {
       const q = searchParams.get('q') || ''
-      if (q.length < 2) return NextResponse.json({ products: [] })
+      // Sanitize: strip PostgREST filter metacharacters to prevent injection
+      const safeQ = q.replace(/[%,()]/g, '').trim()
+      if (safeQ.length < 2) return NextResponse.json({ products: [] })
       const { data } = await supabase
         .from('delivery_products')
         .select('id, name, clean_name, category, unit, last_price, order_count')
         .eq('gym_id', GYM_ID)
-        .or(`name.ilike.%${q}%,clean_name.ilike.%${q}%`)
+        .or(`name.ilike.%${safeQ}%,clean_name.ilike.%${safeQ}%`)
         .order('order_count', { ascending: false })
         .limit(10)
       return NextResponse.json({ products: data || [] })
@@ -315,7 +317,8 @@ export async function POST(req: NextRequest) {
 
     // ── approve ───────────────────────────────────────────────────────────────
     if (action === 'approve') {
-      const { id, approved_by } = body as { id: string; approved_by: string }
+      const { id, approved_by, role } = body as { id: string; approved_by: string; role?: string }
+      if (role !== 'admin') return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
       if (!id) return NextResponse.json({ error: 'Липсва ID' }, { status: 400 })
       await supabase
         .from('delivery_requests')
@@ -326,7 +329,8 @@ export async function POST(req: NextRequest) {
 
     // ── reject ────────────────────────────────────────────────────────────────
     if (action === 'reject') {
-      const { id } = body as { id: string }
+      const { id, role } = body as { id: string; role?: string }
+      if (role !== 'admin') return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
       if (!id) return NextResponse.json({ error: 'Липсва ID' }, { status: 400 })
       await supabase
         .from('delivery_requests')
@@ -337,6 +341,8 @@ export async function POST(req: NextRequest) {
 
     // ── clean_names ───────────────────────────────────────────────────────────
     if (action === 'clean_names') {
+      const { role } = body as { role?: string }
+      if (role !== 'admin') return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
       const { data: products } = await supabase
         .from('delivery_products')
         .select('id, name, category')

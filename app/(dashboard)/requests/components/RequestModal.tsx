@@ -58,8 +58,8 @@ export function RequestModal({ request, onClose, onAddAllToNew }: Props) {
 
         {/* Items list */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-1">
-          {request.delivery_request_items.map((item, i) => (
-            <div key={i} className="flex justify-between items-center py-2 border-b border-white/[0.04] last:border-0">
+          {request.delivery_request_items.map((item) => (
+            <div key={item.id} className="flex justify-between items-center py-2 border-b border-white/[0.04] last:border-0">
               <span className="text-sm text-white/80">{item.product_name}</span>
               <span className="text-sm text-white/40 shrink-0 ml-4">{item.quantity} {item.unit}</span>
             </div>

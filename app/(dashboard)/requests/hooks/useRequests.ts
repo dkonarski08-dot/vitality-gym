@@ -141,17 +141,18 @@ export function useRequests() {
     }
   }, [draftId, ensureDraft])
 
-  const handleSave = useCallback(async () => {
-    if (draftItems.length === 0) return
+  const handleSave = useCallback(async (): Promise<string | null> => {
+    if (draftItems.length === 0) return null
     setSaving(true)
     try {
       const id = await ensureDraft()
-      if (!id) return
+      if (!id) return null
       await fetch('/api/requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'save_draft', id, notes: draftNotes, items: draftItems }),
       })
+      return id
     } finally {
       setSaving(false)
     }
@@ -161,8 +162,7 @@ export function useRequests() {
     if (draftItems.length === 0) return
     setSubmitting(true)
     try {
-      await handleSave()
-      const id = draftId
+      const id = await handleSave()
       if (!id) return
 
       // Phase 1: AI check (force=false). Server keeps status as 'draft' if suggestions exist.
@@ -189,7 +189,7 @@ export function useRequests() {
     } finally {
       setSubmitting(false)
     }
-  }, [draftItems, draftId, handleSave, loadData])
+  }, [draftItems, handleSave, loadData])
 
   // "Добави всички и изпрати": add suggested items to draft, save, then force-submit
   const handleAIAddAndSubmit = useCallback(async (suggestions: { name: string; unit: string }[]) => {
@@ -252,7 +252,7 @@ export function useRequests() {
     await fetch('/api/requests', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'approve', id, approved_by: userName }),
+      body: JSON.stringify({ action: 'approve', id, approved_by: userName, role: userRole }),
     })
     await loadData()
   }, [userName, loadData])
@@ -261,7 +261,7 @@ export function useRequests() {
     await fetch('/api/requests', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'reject', id }),
+      body: JSON.stringify({ action: 'reject', id, role: userRole }),
     })
     await loadData()
   }, [loadData])
@@ -284,7 +284,7 @@ export function useRequests() {
       const res = await fetch('/api/requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'clean_names' }),
+        body: JSON.stringify({ action: 'clean_names', role: userRole }),
       })
       const data = await res.json()
       setCleanResult(
