@@ -303,7 +303,7 @@ export function useRequests() {
     }
   }, [loadData])
 
-  const pastRequests = requests.filter(r => r.status !== 'draft')
+  const allRequests = requests
 
   return {
     // Meta
@@ -312,7 +312,7 @@ export function useRequests() {
     view, setView,
     statusFilter, setStatusFilter,
     // Data
-    topProducts, pastRequests,
+    topProducts, allRequests,
     // Draft
     draftId, draftMonth, draftItems, draftNotes, setDraftNotes,
     saving, submitting,

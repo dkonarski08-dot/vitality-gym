@@ -65,7 +65,7 @@ export default function RequestsPage() {
         onCleanNames={r.handleCleanNames}
       />
       <HistoryView
-        requests={r.pastRequests}
+        requests={r.allRequests}
         statusFilter={r.statusFilter}
         userRole={r.userRole}
         onAddAllToNew={r.handleAddAllToNew}
