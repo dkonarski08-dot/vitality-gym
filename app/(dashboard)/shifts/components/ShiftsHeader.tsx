@@ -71,7 +71,7 @@ export function ShiftsHeader({
         </div>
       </div>
 
-      {holidays.length > 0 && (
+      {userRole === 'admin' && holidays.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
           {holidays.map(h => (
             <div key={h.date} className="flex items-center gap-1.5 bg-red-500/10 border border-red-500/20 rounded-lg px-2.5 py-1">

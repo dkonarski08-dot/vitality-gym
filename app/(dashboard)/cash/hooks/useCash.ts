@@ -2,7 +2,6 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import * as XLSX from 'xlsx'
 import { useSession } from '@/hooks/useSession'
 import { useMonthNav } from '@/hooks/useMonthNav'
 import { CashRecord } from '../types'
@@ -142,84 +141,20 @@ export function useCash() {
     setImporting(true); setImportResult(null)
     try {
       const arrayBuffer = await importFile.arrayBuffer()
-      const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true })
-      const sheet = workbook.Sheets[workbook.SheetNames[0]]
-      const rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, { defval: '' })
-
-      const headers = rows.length > 0 ? Object.keys(rows[0]) : []
-
-      const dateKey = headers.find(h => {
-        const l = h.toLowerCase()
-        return l.includes('дата') || l.includes('date') || l.includes('ден')
-      })
-      const cashKey = headers.find(h => {
-        const l = h.toLowerCase()
-        return l.includes('в брой') || l === 'cash' || l.includes('брой')
-      })
-
-      type DayEntry = { date: string; gymrealm_gym_cash: number | null }
-      const entries: DayEntry[] = []
-
-      if (dateKey && cashKey) {
-        for (const row of rows) {
-          const rawDate = row[dateKey]
-          const rawCash = row[cashKey]
-
-          let parsedDate: string | null = null
-          if (rawDate instanceof Date) {
-            parsedDate = rawDate.toISOString().split('T')[0]
-          } else {
-            const s = String(rawDate).trim()
-            const dmyMatch = s.match(/^(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})$/)
-            const ymdMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-            if (dmyMatch) parsedDate = `${dmyMatch[3]}-${dmyMatch[2].padStart(2,'0')}-${dmyMatch[1].padStart(2,'0')}`
-            else if (ymdMatch) parsedDate = s
-            else if (/^\d{5}$/.test(s)) {
-              const d = new Date((parseInt(s) - 25569) * 86400000)
-              parsedDate = d.toISOString().split('T')[0]
-            }
-          }
-          if (!parsedDate) continue
-
-          const cashNum = parseFloat(String(rawCash).replace(',', '.').replace(/\s/g, ''))
-          entries.push({ date: parsedDate, gymrealm_gym_cash: isNaN(cashNum) || cashNum <= 0 ? null : cashNum })
-        }
-      } else {
-        for (const row of rows) {
-          let parsedDate: string | null = null
-          let cashAmount: number | null = null
-          for (const [key, val] of Object.entries(row)) {
-            const s = String(val).trim()
-            if (!parsedDate) {
-              const dmyMatch = s.match(/^(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})$/)
-              const ymdMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-              if (dmyMatch) parsedDate = `${dmyMatch[3]}-${dmyMatch[2].padStart(2,'0')}-${dmyMatch[1].padStart(2,'0')}`
-              else if (ymdMatch) parsedDate = s
-            }
-            const kl = key.toLowerCase()
-            if (!cashAmount && (kl.includes('брой') || kl.includes('cash'))) {
-              const n = parseFloat(s.replace(',', '.').replace(/\s/g, ''))
-              if (!isNaN(n) && n > 0) cashAmount = n
-            }
-          }
-          if (parsedDate) entries.push({ date: parsedDate, gymrealm_gym_cash: cashAmount })
-        }
-      }
-
-      if (entries.length === 0) {
-        setImportResult(`⚠️ Обработен (${rows.length} реда), но не бяха намерени дати. Провери формата.`)
-        setImporting(false); return
-      }
+      const bytes = new Uint8Array(arrayBuffer)
+      let binary = ''
+      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i])
+      const fileBase64 = btoa(binary)
 
       const res = await fetch('/api/cash', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'gymrealm_import', entries, filename: importFile.name }),
+        body: JSON.stringify({ action: 'gymrealm_import', fileBase64, filename: importFile.name }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
 
-      setImportResult(`✅ Записани ${entries.length} дня (${rows.length} реда в файла)`)
+      setImportResult(`✅ Записани ${data.daysImported} дня`)
       setImportFile(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
       await loadData(adminDate)

@@ -209,6 +209,7 @@ export async function GET(req: NextRequest) {
         .eq('gym_id', GYM_ID)
         .order('created_at', { ascending: false })
       if (statusFilter) query.eq('status', statusFilter)
+      if (instructorId) query.or(`assigned_to.eq.${instructorId},assigned_to.is.null`)
       const { data, error } = await query
       if (error) throw error
       return NextResponse.json({ inquiries: data || [] })

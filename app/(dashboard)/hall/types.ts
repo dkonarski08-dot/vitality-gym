@@ -42,6 +42,9 @@ export interface YearlyRow {
   visits_cash: number
   visits_subscription: number
   visits_multisport: number
+  visits_coolfit: number
+  revenue_multisport: number
+  revenue_coolfit: number
   total_revenue: number
   total_payments: number
   gym_profit: number
