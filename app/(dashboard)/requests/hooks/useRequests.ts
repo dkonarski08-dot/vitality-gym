@@ -3,12 +3,12 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useSession } from '@/hooks/useSession'
-import { Product, RequestItem, DeliveryRequest } from '../types'
+import { DeliveryProduct, DraftItem, DeliveryRequest } from '../types'
 
 export function useRequests() {
   const { userRole, userName } = useSession()
   const [requests, setRequests] = useState<DeliveryRequest[]>([])
-  const [topProducts, setTopProducts] = useState<Product[]>([])
+  const [topProducts, setTopProducts] = useState<DeliveryProduct[]>([])
   const [loading, setLoading] = useState(true)
 
   // Search
@@ -20,7 +20,7 @@ export function useRequests() {
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
 
   // Current draft
-  const [draftItems, setDraftItems] = useState<RequestItem[]>([])
+  const [draftItems, setDraftItems] = useState<DraftItem[]>([])
   const [draftNotes, setDraftNotes] = useState('')
   const [draftId, setDraftId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -72,7 +72,7 @@ export function useRequests() {
     }, 200)
   }, [search])
 
-  const addProduct = useCallback((product: Product | { name: string; unit: string; id?: string }) => {
+  const addProduct = useCallback((product: DeliveryProduct | { name: string; unit: string; id?: string }) => {
     setDraftItems(prev => {
       const existing = prev.find(i => i.product_name === product.name)
       if (existing) {
@@ -166,6 +166,22 @@ export function useRequests() {
     await loadData()
   }, [draftId, loadData])
 
+  const handleApprove = useCallback(async (id: string) => {
+    await fetch('/api/requests', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'approve', id }),
+    })
+    await loadData()
+  }, [loadData])
+
+  const handleReject = useCallback(async (id: string) => {
+    await fetch('/api/requests', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'reject', id }),
+    })
+    await loadData()
+  }, [loadData])
+
   const handleCleanup = useCallback(async () => {
     setCleaning(true); setCleanResult(null)
     const res = await fetch('/api/requests', {
@@ -208,6 +224,6 @@ export function useRequests() {
     // handlers
     addProduct, addMultipleProducts, addCustomProduct,
     updateQty, removeItem,
-    handleSave, handleSubmit, handleDelete, handleCleanup,
+    handleSave, handleSubmit, handleDelete, handleCleanup, handleApprove, handleReject,
   }
 }

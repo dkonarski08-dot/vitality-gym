@@ -4,7 +4,7 @@
 import { useRequests } from './hooks/useRequests'
 import { RequestsHeader } from './components/RequestsHeader'
 import { ProductSearch } from './components/ProductSearch'
-import { PastRequests } from './components/PastRequests'
+import { HistoryView } from './components/HistoryView'
 import { DraftPanel } from './components/DraftPanel'
 
 export default function RequestsPage() {
@@ -43,13 +43,13 @@ export default function RequestsPage() {
                 onAddProduct={r.addProduct}
                 onAddCustomProduct={r.addCustomProduct}
               />
-              <PastRequests
-                pastRequests={r.pastRequests}
-                selectedRequest={r.selectedRequest}
-                setSelectedRequest={r.setSelectedRequest}
+              <HistoryView
+                requests={r.pastRequests}
+                statusFilter="all"
                 userRole={r.userRole}
-                onAddMultiple={r.addMultipleProducts}
-                onDelete={r.handleDelete}
+                onAddAllToNew={(req) => r.addMultipleProducts(req.delivery_request_items)}
+                onApprove={r.handleApprove}
+                onReject={r.handleReject}
               />
             </div>
             <div className="lg:col-span-1">
