@@ -147,12 +147,14 @@ export function ProductPicker({ topProducts, draftItems, onAddProduct }: Props) 
             ) : (
               <div className="px-4 py-3">
                 <div className="text-xs text-white/40 mb-2">Няма намерени продукти за &quot;{search}&quot;</div>
-                <button
-                  onClick={() => { onAddProduct(search.trim(), 'бр', null); setSearch(''); setShowSuggestions(false) }}
-                  className="text-xs text-amber-400 hover:text-amber-300 transition-colors"
-                >
-                  + Добави &quot;{search}&quot; ръчно
-                </button>
+                {search.trim() && (
+                  <button
+                    onClick={() => { onAddProduct(search.trim(), 'бр', null); setSearch(''); setShowSuggestions(false) }}
+                    className="text-xs text-amber-400 hover:text-amber-300 transition-colors"
+                  >
+                    + Добави &quot;{search}&quot; ръчно
+                  </button>
+                )}
               </div>
             )}
           </div>

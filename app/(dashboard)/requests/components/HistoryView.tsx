@@ -29,8 +29,8 @@ const STATUS_COLORS: Record<RequestStatus, string> = {
 }
 
 function formatDate(iso: string) {
-  const d = new Date(iso)
-  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`
+  const [year, m, d] = iso.slice(0, 10).split('-')
+  return `${d}.${m}.${year}`
 }
 
 export function HistoryView({ requests, statusFilter, userRole, onAddAllToNew, onApprove, onReject }: Props) {

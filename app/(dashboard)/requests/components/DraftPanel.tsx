@@ -49,7 +49,8 @@ export function DraftPanel({
                       type="text"
                       value={item.product_name}
                       onChange={e => onUpdateName(idx, e.target.value)}
-                      className="text-xs text-white/80 bg-transparent focus:outline-none focus:text-white w-full min-w-0 overflow-hidden"
+                      placeholder="Напиши продукт..."
+                      className="text-xs text-white/80 bg-transparent focus:outline-none focus:text-white w-full min-w-0 overflow-hidden placeholder:text-white/30"
                     />
                     <div className="text-[10px] text-white/25">{item.unit}</div>
                   </div>
