@@ -77,7 +77,7 @@ export function NewRequestView({
         </div>
 
         {/* Draft panel — 40% */}
-        <div className="lg:w-[40%] p-6 lg:sticky lg:top-[73px] lg:self-start lg:max-h-[calc(100vh-73px)] lg:overflow-hidden flex flex-col">
+        <div className="lg:w-[40%] p-6 lg:sticky lg:top-[73px] lg:self-start lg:h-[calc(100vh-73px)] lg:overflow-hidden flex flex-col">
           <DraftPanel
             items={draftItems}
             notes={draftNotes}
