@@ -95,7 +95,7 @@ export function useRequests() {
             i.product_name === item.product_name ? { ...i, quantity: i.quantity + 1 } : i
           )
         } else {
-          updated.push({ ...item, quantity: 1 })
+          updated.push({ ...item })
         }
       }
       return updated
@@ -112,6 +112,10 @@ export function useRequests() {
 
   const removeItem = useCallback((idx: number) => {
     setDraftItems(prev => prev.filter((_, i) => i !== idx))
+  }, [])
+
+  const updateNote = useCallback((idx: number, note: string | null) => {
+    setDraftItems(prev => prev.map((item, i) => i === idx ? { ...item, note } : item))
   }, [])
 
   // ── API calls ───────────────────────────────────────────────────────────────
@@ -285,7 +289,7 @@ export function useRequests() {
       const data = await res.json()
       setCleanResult(
         data.cleaned > 0
-          ? `✓ Генерирани ${data.cleaned} имена`
+          ? `✓ Генерирани ${data.cleaned} clean имена`
           : '✓ Няма продукти за обработка'
       )
       if (data.cleaned > 0) await loadData()
@@ -313,7 +317,7 @@ export function useRequests() {
     // Admin
     cleaning, cleanResult,
     // Handlers
-    addProduct, addMultipleProducts, updateQty, removeItem,
+    addProduct, addMultipleProducts, updateQty, removeItem, updateNote,
     handleNewRequest, handleSave, handleSubmit,
     handleAIAddAndSubmit, handleAISubmitWithout,
     handleApprove, handleReject, handleAddAllToNew, handleCleanNames,

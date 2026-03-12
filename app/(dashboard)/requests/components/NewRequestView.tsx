@@ -14,6 +14,7 @@ interface Props {
   submitting: boolean
   onAddProduct: (name: string, unit: string, productId: string | null) => void
   onUpdateQty: (idx: number, qty: number) => void
+  onUpdateNote: (idx: number, note: string | null) => void
   onRemoveItem: (idx: number) => void
   onSave: () => void
   onSubmit: () => void
@@ -31,7 +32,7 @@ function formatMonth(month: string) {
 export function NewRequestView({
   month, userRole, topProducts, draftItems, draftNotes, setDraftNotes,
   saving, submitting,
-  onAddProduct, onUpdateQty, onRemoveItem, onSave, onSubmit, onBack, onShowHistory,
+  onAddProduct, onUpdateQty, onUpdateNote, onRemoveItem, onSave, onSubmit, onBack, onShowHistory,
 }: Props) {
   return (
     <div className="min-h-screen flex flex-col">
@@ -84,6 +85,7 @@ export function NewRequestView({
             saving={saving}
             submitting={submitting}
             onUpdateQty={onUpdateQty}
+            onUpdateNote={onUpdateNote}
             onRemoveItem={onRemoveItem}
             onSave={onSave}
             onSubmit={onSubmit}
