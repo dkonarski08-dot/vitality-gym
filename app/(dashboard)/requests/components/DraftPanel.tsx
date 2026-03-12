@@ -9,6 +9,7 @@ interface Props {
   submitting: boolean
   onUpdateQty: (idx: number, qty: number) => void
   onUpdateNote: (idx: number, note: string | null) => void
+  onUpdateName: (idx: number, name: string) => void
   onRemoveItem: (idx: number) => void
   onSave: () => void
   onSubmit: () => void
@@ -17,7 +18,7 @@ interface Props {
 export function DraftPanel({
   items, notes, setNotes,
   saving, submitting,
-  onUpdateQty, onUpdateNote, onRemoveItem, onSave, onSubmit,
+  onUpdateQty, onUpdateNote, onUpdateName, onRemoveItem, onSave, onSubmit,
 }: Props) {
   return (
     <div className="flex flex-col h-full bg-white/[0.02] border border-white/10 rounded-xl p-4">
@@ -44,7 +45,12 @@ export function DraftPanel({
               <div key={idx} className="bg-white/[0.02] rounded-lg px-3 py-2 group">
                 <div className="flex items-center gap-2">
                   <div className="flex-1 min-w-0">
-                    <div className="text-xs text-white/80 truncate">{item.product_name}</div>
+                    <input
+                      type="text"
+                      value={item.product_name}
+                      onChange={e => onUpdateName(idx, e.target.value)}
+                      className="text-xs text-white/80 bg-transparent focus:outline-none focus:text-white w-full min-w-0 overflow-hidden"
+                    />
                     <div className="text-[10px] text-white/25">{item.unit}</div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">

@@ -33,6 +33,7 @@ export default function RequestsPage() {
           onAddProduct={r.addProduct}
           onUpdateQty={r.updateQty}
           onUpdateNote={r.updateNote}
+          onUpdateName={r.updateName}
           onRemoveItem={r.removeItem}
           onSave={r.handleSave}
           onSubmit={r.handleSubmit}

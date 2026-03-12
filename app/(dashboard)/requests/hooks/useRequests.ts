@@ -118,6 +118,10 @@ export function useRequests() {
     setDraftItems(prev => prev.map((item, i) => i === idx ? { ...item, note } : item))
   }, [])
 
+  const updateName = useCallback((idx: number, name: string) => {
+    setDraftItems(prev => prev.map((item, i) => i === idx ? { ...item, product_name: name } : item))
+  }, [])
+
   // ── API calls ───────────────────────────────────────────────────────────────
 
   const ensureDraft = useCallback(async (): Promise<string | null> => {
@@ -317,7 +321,7 @@ export function useRequests() {
     // Admin
     cleaning, cleanResult,
     // Handlers
-    addProduct, addMultipleProducts, updateQty, removeItem, updateNote,
+    addProduct, addMultipleProducts, updateQty, removeItem, updateNote, updateName,
     handleNewRequest, handleSave, handleSubmit,
     handleAIAddAndSubmit, handleAISubmitWithout,
     handleApprove, handleReject, handleAddAllToNew, handleCleanNames,
