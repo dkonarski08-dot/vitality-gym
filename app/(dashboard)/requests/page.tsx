@@ -3,60 +3,73 @@
 
 import { useRequests } from './hooks/useRequests'
 import { RequestsHeader } from './components/RequestsHeader'
-import { ProductPicker } from './components/ProductPicker'
 import { HistoryView } from './components/HistoryView'
-import { DraftPanel } from './components/DraftPanel'
+import { NewRequestView } from './components/NewRequestView'
+import { AISuggestionsModal } from './components/AISuggestionsModal'
 
 export default function RequestsPage() {
   const r = useRequests()
 
+  if (r.loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="w-5 h-5 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (r.view === 'new-request') {
+    return (
+      <>
+        <NewRequestView
+          month={r.draftMonth}
+          userRole={r.userRole}
+          topProducts={r.topProducts}
+          draftItems={r.draftItems}
+          draftNotes={r.draftNotes}
+          setDraftNotes={r.setDraftNotes}
+          saving={r.saving}
+          submitting={r.submitting}
+          onAddProduct={r.addProduct}
+          onUpdateQty={r.updateQty}
+          onRemoveItem={r.removeItem}
+          onSave={r.handleSave}
+          onSubmit={r.handleSubmit}
+          onBack={() => r.setView('history')}
+          onShowHistory={() => r.setView('history')}
+        />
+        <AISuggestionsModal
+          open={r.aiModal !== null}
+          prose={r.aiModal?.prose ?? ''}
+          suggestions={r.aiModal?.suggestions ?? []}
+          onAddAndSubmit={r.handleAIAddAndSubmit}
+          onSubmitWithout={r.handleAISubmitWithout}
+          onDismiss={r.handleAISubmitWithout}
+        />
+      </>
+    )
+  }
+
+  // History view (default)
   return (
     <div className="min-h-screen">
       <RequestsHeader
         userRole={r.userRole}
+        statusFilter={r.statusFilter}
+        onStatusFilter={r.setStatusFilter}
+        onNewRequest={r.handleNewRequest}
         cleaning={r.cleaning}
         cleanResult={r.cleanResult}
-        onCleanup={r.handleCleanup}
+        onCleanNames={r.handleCleanNames}
       />
-
-      <div className="p-6">
-        {r.loading ? (
-          <div className="flex justify-center py-20">
-            <div className="w-5 h-5 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
-              <ProductPicker
-                topProducts={r.topProducts}
-                draftItems={r.draftItems}
-                onAddProduct={r.addProductByParts}
-              />
-              <HistoryView
-                requests={r.pastRequests}
-                statusFilter="all"
-                userRole={r.userRole}
-                onAddAllToNew={(req) => r.addMultipleProducts(req.delivery_request_items)}
-                onApprove={r.handleApprove}
-                onReject={r.handleReject}
-              />
-            </div>
-            <div className="lg:col-span-1">
-              <DraftPanel
-                items={r.draftItems}
-                notes={r.draftNotes}
-                setNotes={r.setDraftNotes}
-                saving={r.saving}
-                submitting={r.submitting}
-                onUpdateQty={r.updateQty}
-                onRemoveItem={r.removeItem}
-                onSave={r.handleSave}
-                onSubmit={r.handleSubmit}
-              />
-            </div>
-          </div>
-        )}
-      </div>
+      <HistoryView
+        requests={r.pastRequests}
+        statusFilter={r.statusFilter}
+        userRole={r.userRole}
+        onAddAllToNew={r.handleAddAllToNew}
+        onApprove={r.handleApprove}
+        onReject={r.handleReject}
+      />
     </div>
   )
 }
