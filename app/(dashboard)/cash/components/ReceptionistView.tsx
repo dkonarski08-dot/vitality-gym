@@ -22,6 +22,7 @@ interface Props {
   loading: boolean
   onSave: () => void
   onAckAlert: (date: string) => void
+  embedded?: boolean
 }
 
 export function ReceptionistView({
@@ -29,10 +30,11 @@ export function ReceptionistView({
   gymSystem, setGymSystem, gymCounted, setGymCounted,
   notes, setNotes, hasYesterdayAlert, yesterdayStr, yesterdayRec,
   loading, onSave, onAckAlert,
+  embedded = false,
 }: Props) {
   return (
-    <div className="min-h-screen">
-      <CashHeader title="Дневна каса — Фитнес" subtitle={formatDate(today)} saved={saved} />
+    <div className={embedded ? undefined : 'min-h-screen'}>
+      {!embedded && <CashHeader title="Дневна каса — Фитнес" subtitle={formatDate(today)} saved={saved} />}
 
       <div className="p-6 max-w-sm mx-auto">
         {loading ? (
