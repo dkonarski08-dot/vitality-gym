@@ -3,7 +3,7 @@ import { NavItem } from '@/src/types/database'
 
 export const NAV_ITEMS: NavItem[] = [
   // Admin + Staff shared
-  { key: 'hall', label: 'Vitality Hall', icon: '🏋️', href: '/hall', roles: ['admin'] },
+  { key: 'hall', label: 'Vitality Hall', icon: '🏋️', href: '/hall', roles: ['admin', 'instructor'] },
   { key: 'shifts', label: 'Смени', icon: '📅', href: '/shifts', roles: ['admin', 'receptionist', 'instructor'] },
   { key: 'pt', label: 'График ПТ', icon: '💪', href: '/pt', roles: ['admin', 'receptionist', 'instructor'] },
   { key: 'notes', label: 'Бележки', icon: '📝', href: '/notes', roles: ['admin', 'receptionist'] },

@@ -140,7 +140,7 @@ export interface AppUser {
   id: string
   gym_id: string
   name: string
-  role: 'admin' | 'receptionist' | 'instructor'
+  role: UserRole
   employee_id: string | null
   phone: string | null
   birth_date: string | null   // ISO date: YYYY-MM-DD

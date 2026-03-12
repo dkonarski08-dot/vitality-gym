@@ -2,7 +2,7 @@
 -- Login accounts table — separate from employees (HR/payroll)
 -- NOTE: Does NOT nullify employees.pin_code — run seed first, then 005b
 
-CREATE TABLE app_users (
+CREATE TABLE IF NOT EXISTS app_users (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   gym_id       uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000001',
   name         text NOT NULL,
@@ -17,3 +17,6 @@ CREATE TABLE app_users (
   updated_at   timestamptz NOT NULL DEFAULT now(),
   UNIQUE (gym_id, name)
 );
+
+CREATE INDEX IF NOT EXISTS idx_app_users_gym_id ON app_users(gym_id);
+CREATE INDEX IF NOT EXISTS idx_app_users_employee_id ON app_users(employee_id);
