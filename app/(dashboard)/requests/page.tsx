@@ -3,7 +3,7 @@
 
 import { useRequests } from './hooks/useRequests'
 import { RequestsHeader } from './components/RequestsHeader'
-import { ProductSearch } from './components/ProductSearch'
+import { ProductPicker } from './components/ProductPicker'
 import { HistoryView } from './components/HistoryView'
 import { DraftPanel } from './components/DraftPanel'
 
@@ -27,21 +27,10 @@ export default function RequestsPage() {
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
-              <ProductSearch
-                search={r.search}
-                setSearch={r.setSearch}
-                suggestions={r.suggestions}
-                showSuggestions={r.showSuggestions}
-                setShowSuggestions={r.setShowSuggestions}
-                searching={r.searching}
-                searchRef={r.searchRef}
+              <ProductPicker
+                topProducts={r.topProducts}
                 draftItems={r.draftItems}
-                filteredTop={r.filteredTop}
-                availableCategories={r.availableCategories}
-                selectedCategory={r.selectedCategory}
-                setSelectedCategory={r.setSelectedCategory}
-                onAddProduct={r.addProduct}
-                onAddCustomProduct={r.addCustomProduct}
+                onAddProduct={r.addProductByParts}
               />
               <HistoryView
                 requests={r.pastRequests}

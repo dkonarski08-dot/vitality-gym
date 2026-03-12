@@ -13,7 +13,7 @@ export function useRequests() {
 
   // Search
   const [search, setSearch] = useState('')
-  const [suggestions, setSuggestions] = useState<Product[]>([])
+  const [suggestions, setSuggestions] = useState<DeliveryProduct[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [searching, setSearching] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -207,6 +207,10 @@ export function useRequests() {
     requests.filter(r => r.status !== 'draft'),
   [requests])
 
+  const addProductByParts = useCallback((name: string, unit: string, productId: string | null) => {
+    addProduct({ name, unit, id: productId ?? undefined })
+  }, [addProduct])
+
   return {
     userRole, loading,
     // search
@@ -220,9 +224,9 @@ export function useRequests() {
     // admin
     cleaning, cleanResult,
     // derived
-    filteredTop, availableCategories, pastRequests,
+    topProducts, filteredTop, availableCategories, pastRequests,
     // handlers
-    addProduct, addMultipleProducts, addCustomProduct,
+    addProduct, addProductByParts, addMultipleProducts, addCustomProduct,
     updateQty, removeItem,
     handleSave, handleSubmit, handleDelete, handleCleanup, handleApprove, handleReject,
   }
