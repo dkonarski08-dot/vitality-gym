@@ -44,8 +44,11 @@ export default function UserModal({ user, onSave, onClose }: UserModalProps) {
 
   const handlePinDelete = () => {
     if (isEdit && !pinDirty) return   // nothing to delete when showing placeholder
-    setPin(prev => prev.slice(0, -1))
-    if (pin.length <= 1) setPinDirty(false)
+    setPin(prev => {
+      const next = prev.slice(0, -1)
+      if (next.length === 0) setPinDirty(false)
+      return next
+    })
   }
 
   const validate = (): string => {
