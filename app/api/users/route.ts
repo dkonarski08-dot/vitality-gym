@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { hash } from 'bcryptjs'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { GYM_ID } from '@/lib/constants'
+import { UserRole } from '@/src/types/database'
 
 const USER_COLUMNS = 'id, gym_id, name, role, employee_id, phone, birth_date, hired_at, is_active, created_at, updated_at'
 
@@ -25,11 +26,13 @@ export async function GET() {
   }
 }
 
+const VALID_ROLES: UserRole[] = ['admin', 'receptionist', 'instructor']
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as {
       name: string
-      role: string
+      role: UserRole
       pin: string
       phone?: string
       birth_date?: string
@@ -39,7 +42,7 @@ export async function POST(req: NextRequest) {
 
     const { name, role, pin, phone, birth_date, hired_at, employee_id } = body
 
-    if (!name?.trim() || !role || !pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+    if (!name?.trim() || !role || !VALID_ROLES.includes(role as UserRole) || !pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
       return NextResponse.json({ error: 'Невалидни данни' }, { status: 400 })
     }
 

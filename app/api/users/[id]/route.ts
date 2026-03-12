@@ -35,6 +35,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       .from('app_users')
       .select('role')
       .eq('id', id)
+      .eq('gym_id', GYM_ID)
       .single()
 
     if (current?.role === 'admin' && role !== 'admin') {
@@ -98,6 +99,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         .from('app_users')
         .select('role')
         .eq('id', id)
+        .eq('gym_id', GYM_ID)
         .single()
 
       if (current?.role === 'admin') {

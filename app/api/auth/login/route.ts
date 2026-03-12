@@ -24,13 +24,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Грешен PIN код' }, { status: 401 })
     }
 
+    if (!user.is_active) {
+      return NextResponse.json({ error: 'Акаунтът е деактивиран' }, { status: 403 })
+    }
+
     const isValid = await compare(pin, user.pin_hash)
     if (!isValid) {
       return NextResponse.json({ error: 'Грешен PIN код' }, { status: 401 })
-    }
-
-    if (!user.is_active) {
-      return NextResponse.json({ error: 'Акаунтът е деактивиран' }, { status: 403 })
     }
 
     return NextResponse.json({
