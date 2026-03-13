@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin'
 import { PRODUCT_CATEGORIES } from '@/src/constants/categories'
 import { GYM_ID } from '@/lib/constants'
+import { serverError } from '@/lib/serverError'
 const OUR_COMPANY_NAMES = ['виталити фитнес', 'vitality fitness', 'виталити фитнес оод', 'виталити']
 
 const PARSE_PROMPT = `Анализирай тази българска фактура. Върни САМО валиден JSON без markdown.
@@ -168,7 +169,7 @@ export async function GET(req: NextRequest) {
     }
     const { data } = await supabase.from('deliveries').select('*, delivery_items(*)').eq('gym_id', GYM_ID).order('invoice_date', { ascending: false }).limit(200)
     return NextResponse.json({ deliveries: data || [] })
-  } catch (err) { return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 }) }
+  } catch (err) { return serverError('deliveries GET', err) }
 }
 
 export async function POST(req: NextRequest) {
@@ -273,5 +274,5 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
-  } catch (err) { console.log('[POST error]', err); return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 }) }
+  } catch (err) { return serverError('deliveries POST', err) }
 }

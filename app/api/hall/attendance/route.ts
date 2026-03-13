@@ -3,6 +3,7 @@
 // Keeps all DB writes server-side — never call supabase directly from client for mutations.
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin'
+import { serverError } from '@/lib/serverError'
 
 export async function POST(req: NextRequest) {
   try {
@@ -106,10 +107,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   } catch (err) {
-    console.error('[hall/attendance error]', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 }
-    )
+    return serverError('hall/attendance POST', err)
   }
 }

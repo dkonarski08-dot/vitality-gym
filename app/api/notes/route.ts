@@ -1,6 +1,7 @@
 // app/api/notes/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin'
+import { serverError } from '@/lib/serverError'
 
 export async function GET(req: NextRequest) {
   try {
@@ -22,10 +23,7 @@ export async function GET(req: NextRequest) {
     if (error) throw error
     return NextResponse.json({ notes: data || [] })
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 }
-    )
+    return serverError('notes GET', err)
   }
 }
 
@@ -86,9 +84,6 @@ export async function POST(req: NextRequest) {
     if (error) throw error
     return NextResponse.json({ success: true, note: data })
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 }
-    )
+    return serverError('notes POST', err)
   }
 }

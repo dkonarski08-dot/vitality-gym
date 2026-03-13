@@ -4,6 +4,8 @@ import { hash } from 'bcryptjs'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { GYM_ID } from '@/lib/constants'
 import { UserRole } from '@/src/types/database'
+import { requireRole } from '@/lib/requireRole'
+import { serverError } from '@/lib/serverError'
 
 const USER_COLUMNS = 'id, gym_id, name, role, employee_id, phone, birth_date, hired_at, is_active, created_at, updated_at'
 
@@ -19,10 +21,7 @@ export async function GET() {
     if (error) throw error
     return NextResponse.json({ users: data ?? [] })
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 }
-    )
+    return serverError('users GET', err)
   }
 }
 
@@ -30,6 +29,9 @@ const VALID_ROLES: UserRole[] = ['admin', 'receptionist', 'instructor']
 
 export async function POST(req: NextRequest) {
   try {
+    const authErr = requireRole(req, 'admin')
+    if (authErr) return authErr
+
     const body = await req.json() as {
       name: string
       role: UserRole
@@ -42,7 +44,7 @@ export async function POST(req: NextRequest) {
 
     const { name, role, pin, phone, birth_date, hired_at, employee_id } = body
 
-    if (!name?.trim() || !role || !VALID_ROLES.includes(role as UserRole) || !pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+    if (!name?.trim() || !role || !VALID_ROLES.includes(role as UserRole) || !pin || pin.length !== 6 || !/^\d{6}$/.test(pin)) {
       return NextResponse.json({ error: 'Невалидни данни' }, { status: 400 })
     }
 
@@ -76,9 +78,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ user: data }, { status: 201 })
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 }
-    )
+    return serverError('users POST', err)
   }
 }

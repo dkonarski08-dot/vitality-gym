@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin'
 import { GYM_ID } from '@/lib/constants'
+import { requireRole, getSession } from '@/lib/requireRole'
+import { serverError } from '@/lib/serverError'
 
 export async function GET(req: NextRequest) {
   try {
@@ -143,10 +145,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ requests: data || [] })
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 }
-    )
+    return serverError('requests GET', err)
   }
 }
 
@@ -326,20 +325,23 @@ export async function POST(req: NextRequest) {
 
     // ── approve ───────────────────────────────────────────────────────────────
     if (action === 'approve') {
-      const { id, approved_by, role } = body as { id: string; approved_by: string; role?: string }
-      if (role !== 'admin') return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+      const approveErr = requireRole(req, 'admin')
+      if (approveErr) return approveErr
+      const session = getSession(req)!
+      const { id } = body as { id: string }
       if (!id) return NextResponse.json({ error: 'Липсва ID' }, { status: 400 })
       await supabase
         .from('delivery_requests')
-        .update({ status: 'approved', approved_by, approved_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .update({ status: 'approved', approved_by: session.name, approved_at: new Date().toISOString(), updated_at: new Date().toISOString() })
         .eq('id', id)
       return NextResponse.json({ success: true })
     }
 
     // ── reject ────────────────────────────────────────────────────────────────
     if (action === 'reject') {
-      const { id, role } = body as { id: string; role?: string }
-      if (role !== 'admin') return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+      const rejectErr = requireRole(req, 'admin')
+      if (rejectErr) return rejectErr
+      const { id } = body as { id: string }
       if (!id) return NextResponse.json({ error: 'Липсва ID' }, { status: 400 })
       await supabase
         .from('delivery_requests')
@@ -350,8 +352,8 @@ export async function POST(req: NextRequest) {
 
     // ── clean_names ───────────────────────────────────────────────────────────
     if (action === 'clean_names') {
-      const { role } = body as { role?: string }
-      if (role !== 'admin') return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+      const cleanErr = requireRole(req, 'admin')
+      if (cleanErr) return cleanErr
       const { data: products } = await supabase
         .from('delivery_products')
         .select('id, name, category')
@@ -416,10 +418,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   } catch (err) {
-    console.error('[requests POST error]', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 }
-    )
+    return serverError('requests POST', err)
   }
 }

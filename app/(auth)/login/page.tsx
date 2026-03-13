@@ -59,7 +59,7 @@ export default function LoginPage() {
   }
 
   const handlePinInput = (digit: string) => {
-    if (pin.length < 4) { setPin(p => p + digit); setError('') }
+    if (pin.length < 6) { setPin(p => p + digit); setError('') }
   }
   const handlePinDelete = () => { setPin(p => p.slice(0, -1)); setError('') }
 
@@ -141,9 +141,9 @@ export default function LoginPage() {
             </button>
 
             <div className="flex justify-center gap-3 mb-8">
-              {[0, 1, 2, 3].map(i => (
-                <div key={i} className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center transition-all ${i < pin.length ? 'border-amber-400/50 bg-amber-400/10' : 'border-white/[0.08] bg-white/[0.02]'}`}>
-                  {i < pin.length && <div className="w-3 h-3 rounded-full bg-amber-400" />}
+              {[0, 1, 2, 3, 4, 5].map(i => (
+                <div key={i} className={`w-10 h-10 rounded-xl border-2 flex items-center justify-center transition-all ${i < pin.length ? 'border-amber-400/50 bg-amber-400/10' : 'border-white/[0.08] bg-white/[0.02]'}`}>
+                  {i < pin.length && <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />}
                 </div>
               ))}
             </div>
@@ -162,7 +162,7 @@ export default function LoginPage() {
               ))}
             </div>
 
-            <button onClick={handleLogin} disabled={pin.length !== 4 || loading}
+            <button onClick={handleLogin} disabled={pin.length !== 6 || loading}
               className="w-full mt-6 py-3.5 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-[#0a0a0f] font-bold text-sm disabled:opacity-30 hover:shadow-lg hover:shadow-amber-500/20 transition-all active:scale-[0.98]">
               {loading ? 'Влизам...' : 'Влез'}
             </button>

@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin'
+import { requireRole } from '@/lib/requireRole'
+import { serverError } from '@/lib/serverError'
 
 export async function POST(req: NextRequest) {
   try {
+    const authErr = requireRole(req, 'admin')
+    if (authErr) return authErr
+
     const { month } = await req.json()
     if (!month) return NextResponse.json({ error: 'Липсва месец' }, { status: 400 })
 
@@ -37,6 +42,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, updated })
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
+    return serverError('hall/recalculate POST', err)
   }
 }

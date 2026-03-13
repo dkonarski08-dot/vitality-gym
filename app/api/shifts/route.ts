@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin'
 import { GYM_ID } from '@/lib/constants'
+import { requireRole } from '@/lib/requireRole'
+import { serverError } from '@/lib/serverError'
 
 export async function GET(req: NextRequest) {
   try {
@@ -32,6 +34,7 @@ export async function GET(req: NextRequest) {
     const { data: staff } = await supabase
       .from('employees')
       .select('*')
+      .eq('gym_id', GYM_ID)
       .eq('active', true)
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true })
@@ -43,18 +46,22 @@ export async function GET(req: NextRequest) {
     const { data: shifts } = await supabase
       .from('shifts')
       .select('*, staff:employees(id, name, role)')
+      .eq('gym_id', GYM_ID)
       .gte('date', `${month}-01`)
       .lte('date', `${month}-${String(lastDay).padStart(2, '0')}`)
       .order('date')
 
     return NextResponse.json({ shifts: shifts || [], staff: staff || [] })
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
+    return serverError('shifts GET', err)
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
+    const authErr = requireRole(req, 'admin')
+    if (authErr) return authErr
+
     const body = await req.json()
     const { action } = body
 
@@ -79,7 +86,7 @@ export async function POST(req: NextRequest) {
       if (!name) return NextResponse.json({ error: 'Липсва име' }, { status: 400 })
       const { data, error } = await supabase
         .from('employees')
-        .insert([{ name, role: role || 'Reception', hourly_rate: hourly_rate || 0, phone, active: true }])
+        .insert([{ gym_id: GYM_ID, name, role: role || 'Reception', hourly_rate: hourly_rate || 0, phone, active: true }])
         .select().single()
       if (error) throw error
       return NextResponse.json({ success: true, staff: data })
@@ -289,6 +296,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, shift: data })
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
+    return serverError('shifts POST', err)
   }
 }

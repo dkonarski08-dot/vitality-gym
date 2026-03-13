@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { hash } from 'bcryptjs'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { GYM_ID } from '@/lib/constants'
+import { requireRole } from '@/lib/requireRole'
+import { serverError } from '@/lib/serverError'
 
 const USER_COLUMNS = 'id, gym_id, name, role, employee_id, phone, birth_date, hired_at, is_active, created_at, updated_at'
 
@@ -19,6 +21,9 @@ async function getActiveAdminCountExcluding(id: string): Promise<number> {
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const authErr = requireRole(req, 'admin')
+    if (authErr) return authErr
+
     const { id } = await params
     const body = await req.json() as {
       name: string
@@ -58,7 +63,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       updated_at: new Date().toISOString(),
     }
 
-    if (pin && pin.length === 4 && /^\d{4}$/.test(pin)) {
+    if (pin && pin.length === 6 && /^\d{6}$/.test(pin)) {
       updates.pin_hash = await hash(pin, 10)
     }
 
@@ -82,15 +87,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     return NextResponse.json({ user: data })
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 }
-    )
+    return serverError('users/[id] PUT', err)
   }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const authErr = requireRole(req, 'admin')
+    if (authErr) return authErr
+
     const { id } = await params
     const { is_active } = await req.json() as { is_active: boolean }
 
@@ -124,9 +129,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (error) throw error
     return NextResponse.json({ user: data })
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 }
-    )
+    return serverError('users/[id] PATCH', err)
   }
 }

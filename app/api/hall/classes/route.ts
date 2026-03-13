@@ -3,6 +3,8 @@
 // Extracted from page.tsx direct supabase calls (security: avoid client-side mutations).
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin'
+import { requireRole } from '@/lib/requireRole'
+import { serverError } from '@/lib/serverError'
 
 const ALLOWED_FIELDS = new Set([
   'price_cash', 'price_subscription', 'price_multisport', 'price_coolfit',
@@ -11,6 +13,9 @@ const ALLOWED_FIELDS = new Set([
 
 export async function PATCH(req: NextRequest) {
   try {
+    const authErr = requireRole(req, 'admin')
+    if (authErr) return authErr
+
     const { id, field, value } = await req.json()
 
     if (!id) return NextResponse.json({ error: 'Липсва ID' }, { status: 400 })
@@ -25,10 +30,6 @@ export async function PATCH(req: NextRequest) {
     if (error) throw error
     return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('[hall/classes error]', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 }
-    )
+    return serverError('hall/classes PATCH', err)
   }
 }
