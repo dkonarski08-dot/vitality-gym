@@ -11,7 +11,7 @@ const PUBLIC_PREFIXES = [
   '/favicon',
 ]
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
   // Allow public paths through without session check
@@ -26,7 +26,7 @@ export function middleware(req: NextRequest) {
   if (!isApiRoute && !isPageRoute) return NextResponse.next()
 
   const token = req.cookies.get(SESSION_COOKIE)?.value
-  const session = token ? verifySession(token) : null
+  const session = token ? await verifySession(token) : null
 
   if (!session) {
     if (isApiRoute) {

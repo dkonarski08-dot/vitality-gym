@@ -1,7 +1,6 @@
 // lib/session.ts
 // Server-side session token: base64url(payload).hmac
-// Used in httpOnly cookie so middleware can verify identity without DB lookup.
-import { createHmac } from 'crypto'
+// Uses Web Crypto API (crypto.subtle) — compatible with both Edge Runtime and Node.js 18+.
 
 export interface SessionPayload {
   name: string
@@ -17,22 +16,53 @@ function getSecret(): string {
   return s ?? 'dev-secret-change-in-production'
 }
 
-export function signSession(payload: SessionPayload): string {
-  const data = JSON.stringify(payload)
-  const encoded = Buffer.from(data).toString('base64url')
-  const hmac = createHmac('sha256', getSecret()).update(encoded).digest('hex')
+function toBase64url(str: string): string {
+  return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+}
+
+function fromBase64url(str: string): string {
+  const padded = str.replace(/-/g, '+').replace(/_/g, '/').padEnd(
+    str.length + (4 - (str.length % 4)) % 4, '='
+  )
+  return atob(padded)
+}
+
+async function hmacHex(data: string, secret: string): Promise<string> {
+  const enc = new TextEncoder()
+  const key = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(data))
+  return Array.from(new Uint8Array(sig))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+export async function signSession(payload: SessionPayload): Promise<string> {
+  const encoded = toBase64url(JSON.stringify(payload))
+  const hmac = await hmacHex(encoded, getSecret())
   return `${encoded}.${hmac}`
 }
 
-export function verifySession(token: string): SessionPayload | null {
+export async function verifySession(token: string): Promise<SessionPayload | null> {
   const dot = token.lastIndexOf('.')
   if (dot === -1) return null
   const encoded = token.slice(0, dot)
   const hmac = token.slice(dot + 1)
-  const expected = createHmac('sha256', getSecret()).update(encoded).digest('hex')
-  if (hmac !== expected) return null
+  const expected = await hmacHex(encoded, getSecret())
+  // Constant-time comparison
+  if (hmac.length !== expected.length) return null
+  let diff = 0
+  for (let i = 0; i < hmac.length; i++) {
+    diff |= hmac.charCodeAt(i) ^ expected.charCodeAt(i)
+  }
+  if (diff !== 0) return null
   try {
-    return JSON.parse(Buffer.from(encoded, 'base64url').toString()) as SessionPayload
+    return JSON.parse(fromBase64url(encoded)) as SessionPayload
   } catch {
     return null
   }

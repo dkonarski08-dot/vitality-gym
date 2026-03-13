@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     resetRateLimit(name)
 
     const payload = { name: user.name, role: user.role, employeeId: user.employee_id ?? null }
-    const token = signSession(payload)
+    const token = await signSession(payload)
 
     const res = NextResponse.json({
       name: user.name,
