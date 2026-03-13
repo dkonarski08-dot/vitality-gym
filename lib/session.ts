@@ -17,14 +17,21 @@ function getSecret(): string {
 }
 
 function toBase64url(str: string): string {
-  return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+  // btoa only handles Latin-1; encode to UTF-8 first to support Cyrillic names
+  const bytes = new TextEncoder().encode(str)
+  let binary = ''
+  bytes.forEach(b => { binary += String.fromCharCode(b) })
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
 }
 
 function fromBase64url(str: string): string {
   const padded = str.replace(/-/g, '+').replace(/_/g, '/').padEnd(
     str.length + (4 - (str.length % 4)) % 4, '='
   )
-  return atob(padded)
+  const binary = atob(padded)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return new TextDecoder().decode(bytes)
 }
 
 async function hmacHex(data: string, secret: string): Promise<string> {

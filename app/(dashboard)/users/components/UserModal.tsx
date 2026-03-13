@@ -32,7 +32,7 @@ export default function UserModal({ user, onSave, onClose }: UserModalProps) {
   const [saving, setSaving] = useState(false)
 
   const handlePinDigit = (digit: string) => {
-    if (pin.length >= 4) return
+    if (pin.length >= 6) return
     if (isEdit && !pinDirty) {
       // First digit in edit mode: clear the placeholder and start fresh
       setPin(digit)
@@ -54,8 +54,8 @@ export default function UserModal({ user, onSave, onClose }: UserModalProps) {
   const validate = (): string => {
     if (!role) return 'Изберете роля'
     if (!name.trim()) return 'Въведете потребителско име'
-    if (!isEdit && pin.length !== 4) return 'PIN кодът трябва да е 4 цифри'
-    if (pin.length > 0 && pin.length !== 4) return 'PIN кодът трябва да е 4 цифри'
+    if (!isEdit && pin.length !== 6) return 'PIN кодът трябва да е 6 цифри'
+    if (pin.length > 0 && pin.length !== 6) return 'PIN кодът трябва да е 6 цифри'
     return ''
   }
 
@@ -73,7 +73,7 @@ export default function UserModal({ user, onSave, onClose }: UserModalProps) {
         hired_at: hiredAt || null,
       }
       // Only send PIN if user entered a new one (or it's a new user)
-      if (!isEdit || (pinDirty && pin.length === 4)) {
+      if (!isEdit || (pinDirty && pin.length === 6)) {
         body.pin = pin
       }
       const url = isEdit ? `/api/users/${user!.id}` : '/api/users'
@@ -96,11 +96,11 @@ export default function UserModal({ user, onSave, onClose }: UserModalProps) {
   // How many dots to show filled:
   // - New user or pinDirty=true: actual pin.length
   // - Edit mode, not yet typed: 4 (placeholder dots)
-  const filledDots = (isEdit && !pinDirty) ? 4 : pin.length
+  const filledDots = (isEdit && !pinDirty) ? 6 : pin.length
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[#0f0f14] border border-white/[0.1] rounded-[20px] w-full max-w-[460px] p-7" onClick={e => e.stopPropagation()}>
+      <div className="bg-[#0f0f14] border border-white/[0.1] rounded-[20px] w-full max-w-[460px] p-7 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="mb-6">
           <h3 className="text-[18px] font-bold text-white">
@@ -142,7 +142,7 @@ export default function UserModal({ user, onSave, onClose }: UserModalProps) {
             PIN код{isEdit ? ' (остави празно за без промяна)' : ''}
           </label>
           <div className="flex gap-2 justify-center mb-2">
-            {[0, 1, 2, 3].map(i => (
+            {[0, 1, 2, 3, 4, 5].map(i => (
               <div key={i} className={`w-[42px] h-[42px] rounded-[10px] border-2 flex items-center justify-center transition-all ${i < filledDots ? 'border-amber-400/50 bg-amber-400/[0.1]' : 'border-white/[0.1] bg-white/[0.03]'}`}>
                 {i < filledDots && <div className="w-[11px] h-[11px] rounded-full bg-amber-400" />}
               </div>
