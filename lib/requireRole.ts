@@ -14,11 +14,11 @@ export interface RequestSession {
 /** Extract session from middleware-injected headers. Returns null if no valid session. */
 export function getSession(req: NextRequest): RequestSession | null {
   const role = req.headers.get('x-session-role') as UserRole | null
-  const name = req.headers.get('x-session-name')
-  if (!role || !name) return null
+  const rawName = req.headers.get('x-session-name')
+  if (!role || !rawName) return null
   return {
     role,
-    name,
+    name: decodeURIComponent(rawName),
     employeeId: req.headers.get('x-session-employee-id') || null,
   }
 }

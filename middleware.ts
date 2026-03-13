@@ -41,7 +41,7 @@ export async function middleware(req: NextRequest) {
   // Inject verified session into request headers for use by route handlers
   const res = NextResponse.next()
   res.headers.set('x-session-role', session.role)
-  res.headers.set('x-session-name', session.name)
+  res.headers.set('x-session-name', encodeURIComponent(session.name))
   res.headers.set('x-session-employee-id', session.employeeId ?? '')
   return res
 }
