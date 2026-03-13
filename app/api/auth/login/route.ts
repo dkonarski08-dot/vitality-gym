@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { compare } from 'bcryptjs'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { GYM_ID } from '@/lib/constants'
+import { signSession, SESSION_COOKIE, COOKIE_MAX_AGE } from '@/lib/session'
+import { checkRateLimit, recordFailedAttempt, resetRateLimit } from '@/lib/rateLimiter'
+import { serverError } from '@/lib/serverError'
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,6 +16,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Грешен PIN код' }, { status: 401 })
     }
 
+    // Rate limit: 5 failed attempts per username per 15 min
+    if (!checkRateLimit(name)) {
+      return NextResponse.json(
+        { error: 'Твърде много опити. Опитайте след 15 минути.' },
+        { status: 429 }
+      )
+    }
+
     const { data: user, error } = await supabaseAdmin
       .from('app_users')
       .select('name, role, employee_id, pin_hash, is_active')
@@ -21,6 +32,7 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (error || !user) {
+      recordFailedAttempt(name)
       return NextResponse.json({ error: 'Грешен PIN код' }, { status: 401 })
     }
 
@@ -30,18 +42,31 @@ export async function POST(req: NextRequest) {
 
     const isValid = await compare(pin, user.pin_hash)
     if (!isValid) {
+      recordFailedAttempt(name)
       return NextResponse.json({ error: 'Грешен PIN код' }, { status: 401 })
     }
 
-    return NextResponse.json({
+    resetRateLimit(name)
+
+    const payload = { name: user.name, role: user.role, employeeId: user.employee_id ?? null }
+    const token = signSession(payload)
+
+    const res = NextResponse.json({
       name: user.name,
       role: user.role,
       employeeId: user.employee_id,
     })
+
+    res.cookies.set(SESSION_COOKIE, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: COOKIE_MAX_AGE,
+      path: '/',
+    })
+
+    return res
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 }
-    )
+    return serverError('auth/login', err)
   }
 }
