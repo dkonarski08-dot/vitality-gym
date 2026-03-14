@@ -17,20 +17,26 @@ export type SessionType = 'personal' | 'pair' | 'online'
 export interface Instructor { id: string; name: string; role: string }
 export interface PTClient {
   id: string; instructor_id: string; name: string; phone: string | null
-  email: string | null; goal: string | null; health_notes: string | null; active: boolean
+  email: string | null; goal: string | null; health_notes: string | null
+  active: boolean; source: string | null
+  preferred_days: string[] | null; preferred_time_slot: string | null
   instructor: { id: string; name: string } | null
   packages: PTPackage[]
 }
 export interface PTPackage {
   id: string; client_id: string; instructor_id: string
   total_sessions: number; used_sessions: number
-  price_total: number | null; purchased_at: string; expires_at: string | null
+  price_total: number | null; purchased_at: string
+  starts_on: string | null; expires_at: string | null
+  duration_days: number | null
   active: boolean; notes: string | null
 }
 export interface PTSession {
   id: string; instructor_id: string; client_id: string; package_id: string | null
   scheduled_at: string; duration_minutes: number; session_type: SessionType
   status: SessionStatus; location: string | null; notes: string | null
+  billing_type: 'package' | 'individual' | 'free'
+  session_price: number | null
   cancelled_at: string | null; cancelled_by: string | null
   recurrence_group_id: string | null; created_by: string | null
   client: { id: string; name: string; phone: string | null; goal: string | null } | null
