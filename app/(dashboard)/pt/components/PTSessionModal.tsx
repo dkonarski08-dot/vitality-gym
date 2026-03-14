@@ -1,7 +1,7 @@
 // app/(dashboard)/pt/components/PTSessionModal.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { PTSession, PTClient, Instructor, SessionStatus, SessionType } from '../page'
 
 interface Props {
@@ -66,10 +66,43 @@ export default function PTSessionModal({ mode, session, prefillDate, prefillTime
   const activePackage = clients.find(c => c.id === clientId)?.packages?.find(p => p.active)
   const remaining = activePackage ? activePackage.total_sessions - activePackage.used_sessions : null
 
+  // Billing type selection: 'package_<id>' | 'individual' | 'free'
+  const allActivePackages = clientId
+    ? (clients.find(c => c.id === clientId)?.packages?.filter(p => p.active) ?? [])
+    : []
+
+  const [billingType, setBillingType] = useState<string>(() => {
+    if (session?.package_id) return `package_${session.package_id}`
+    if (session?.billing_type === 'individual') return 'individual'
+    if (session?.billing_type === 'free') return 'free'
+    const pkgs = clients.find(c => c.id === clientId)?.packages?.filter(p => p.active) ?? []
+    return pkgs.length > 0 ? `package_${pkgs[0].id}` : 'individual'
+  })
+  const [sessionPrice, setSessionPrice] = useState(session?.session_price ? String(session.session_price) : '')
+
+  // Reset billingType when client changes — skip first render to preserve edit-mode init
+  const isFirstRender = useRef(true)
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return }
+    const pkgs = clients.find(c => c.id === clientId)?.packages?.filter(p => p.active) ?? []
+    if (pkgs.length > 0) {
+      setBillingType(`package_${pkgs[0].id}`)
+    } else {
+      setBillingType('individual')
+    }
+  }, [clientId, clients])
+
   const handleSave = async () => {
     if (!clientId || !instructorId || !date || !time) return
     setSaving(true)
     const scheduled_at = new Date(`${date}T${time}:00`).toISOString()
+
+    const resolvedPackageId = billingType.startsWith('package_')
+      ? billingType.replace('package_', '')
+      : null
+    const resolvedBillingType = billingType.startsWith('package_')
+      ? 'package'
+      : billingType as 'individual' | 'free'
 
     if (mode === 'add') {
       if (isRecurring) {
@@ -78,7 +111,9 @@ export default function PTSessionModal({ mode, session, prefillDate, prefillTime
           body: JSON.stringify({
             action: 'add_recurring',
             instructor_id: instructorId, client_id: clientId,
-            package_id: activePackage?.id || null,
+            package_id: resolvedPackageId,
+            billing_type: resolvedBillingType,
+            session_price: resolvedBillingType === 'individual' && sessionPrice ? Number(sessionPrice) : null,
             day_of_week: recurringDay,
             time_of_day: time,
             duration_minutes: duration,
@@ -94,7 +129,9 @@ export default function PTSessionModal({ mode, session, prefillDate, prefillTime
           body: JSON.stringify({
             action: 'add_session',
             instructor_id: instructorId, client_id: clientId,
-            package_id: activePackage?.id || null,
+            package_id: resolvedPackageId,
+            billing_type: resolvedBillingType,
+            session_price: resolvedBillingType === 'individual' && sessionPrice ? Number(sessionPrice) : null,
             scheduled_at, duration_minutes: duration,
             session_type: sessionType, location, notes,
             created_by: userName,
@@ -155,22 +192,93 @@ export default function PTSessionModal({ mode, session, prefillDate, prefillTime
             <option value="">— избери клиент —</option>
             {filteredClients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          {/* Package info */}
+          {/* Package / billing type picker */}
           {clientId && (
-            <div className="mt-1.5 flex items-center gap-2">
-              {activePackage ? (
-                <span className={`text-[11px] px-2 py-0.5 rounded-full border ${
-                  remaining !== null && remaining <= 2
-                    ? 'bg-red-500/10 text-red-400 border-red-500/20'
-                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+            <div className="mt-2 space-y-1.5">
+              <div className="text-[9px] font-semibold uppercase tracking-wider text-white/30 mb-1">
+                Избери пакет за тази тренировка
+              </div>
+
+              {/* Active packages */}
+              {allActivePackages.map(pkg => {
+                const rem = pkg.total_sessions - pkg.used_sessions
+                const bid = `package_${pkg.id}`
+                const isSelected = billingType === bid
+                return (
+                  <button key={pkg.id} onClick={() => setBillingType(bid)}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border text-left transition-all ${
+                      isSelected ? 'bg-amber-400/[0.08] border-amber-400/25' : 'bg-white/[0.03] border-white/[0.07] hover:border-white/15'
+                    }`}>
+                    <div className={`w-3.5 h-3.5 rounded-full border flex-shrink-0 flex items-center justify-center ${
+                      isSelected ? 'border-amber-400/50 bg-amber-400/20' : 'border-white/20'
+                    }`}>
+                      {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-semibold text-white/80">
+                        {pkg.total_sessions} сесии{pkg.price_total ? ` · €${pkg.price_total}` : ''}
+                      </div>
+                      <div className={`text-[10px] ${rem <= 2 ? 'text-red-400' : 'text-white/35'}`}>
+                        Оставащи: {rem}{rem <= 2 ? ' ⚠️' : ''}{pkg.expires_at ? ` · до ${new Date(pkg.expires_at).toLocaleDateString('bg-BG', { day: 'numeric', month: 'short' })}` : ''}
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+
+              {/* Divider */}
+              {allActivePackages.length > 0 && (
+                <div className="flex items-center gap-2 py-0.5">
+                  <div className="flex-1 h-px bg-white/[0.05]" />
+                  <span className="text-[9px] text-white/20">или</span>
+                  <div className="flex-1 h-px bg-white/[0.05]" />
+                </div>
+              )}
+
+              {/* Individual */}
+              <button onClick={() => setBillingType('individual')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border text-left transition-all ${
+                  billingType === 'individual' ? 'bg-violet-400/[0.08] border-violet-400/25' : 'bg-white/[0.03] border-white/[0.07] hover:border-white/15'
                 }`}>
-                  📦 {remaining} / {activePackage.total_sessions} сесии
-                  {remaining !== null && remaining <= 2 && ' ⚠️'}
-                </span>
-              ) : (
-                <span className="text-[11px] text-white/30 px-2 py-0.5 rounded-full border border-white/10">
-                  Няма активен пакет
-                </span>
+                <div className={`w-3.5 h-3.5 rounded-full border flex-shrink-0 flex items-center justify-center ${
+                  billingType === 'individual' ? 'border-violet-400/50 bg-violet-400/20' : 'border-white/20'
+                }`}>
+                  {billingType === 'individual' && <div className="w-1.5 h-1.5 rounded-full bg-violet-400" />}
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-white/75">💰 Индивидуална тренировка</div>
+                  <div className="text-[10px] text-white/35">Фиксирана цена, не е към пакет</div>
+                </div>
+              </button>
+              {billingType === 'individual' && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-violet-400/[0.06] border border-violet-400/[0.18] rounded-lg ml-1">
+                  <label className="text-[10px] text-violet-400/80 whitespace-nowrap">Цена на тренировката</label>
+                  <input value={sessionPrice} onChange={e => setSessionPrice(e.target.value)}
+                    type="number" min="0" placeholder="0"
+                    className="flex-1 h-7 px-2 rounded-md bg-white/[0.06] border border-violet-400/20 text-white text-sm text-right focus:outline-none focus:border-violet-400/40" />
+                  <span className="text-sm font-bold text-violet-400">€</span>
+                </div>
+              )}
+
+              {/* Free */}
+              <button onClick={() => setBillingType('free')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border text-left transition-all ${
+                  billingType === 'free' ? 'bg-emerald-400/[0.07] border-emerald-400/22' : 'bg-white/[0.03] border-white/[0.07] hover:border-white/15'
+                }`}>
+                <div className={`w-3.5 h-3.5 rounded-full border flex-shrink-0 flex items-center justify-center ${
+                  billingType === 'free' ? 'border-emerald-400/50 bg-emerald-400/15' : 'border-white/20'
+                }`}>
+                  {billingType === 'free' && <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-white/75">🎁 Безплатна тренировка</div>
+                  <div className="text-[10px] text-white/35">Пробна / подаръчна</div>
+                </div>
+              </button>
+              {billingType === 'free' && (
+                <div className="px-3 py-2 bg-emerald-500/[0.06] border border-emerald-500/[0.15] rounded-lg text-[10px] text-emerald-400/80 ml-1">
+                  ✓ Тренировката ще бъде записана без цена и не намалява пакет
+                </div>
               )}
             </div>
           )}
@@ -295,7 +403,13 @@ export default function PTSessionModal({ mode, session, prefillDate, prefillTime
             Отказ
           </button>
           <button onClick={handleSave} disabled={saving || !clientId}
-            className="flex-1 h-10 rounded-xl text-xs font-medium bg-amber-400/10 text-amber-400 border border-amber-400/20 hover:bg-amber-400/15 disabled:opacity-30">
+            className={`flex-1 h-10 rounded-xl text-xs font-medium border disabled:opacity-30 disabled:cursor-not-allowed transition-colors ${
+              billingType === 'free'
+                ? 'bg-emerald-400/10 text-emerald-400 border-emerald-400/20 hover:bg-emerald-400/15'
+                : billingType === 'individual'
+                ? 'bg-violet-400/10 text-violet-400 border-violet-400/20 hover:bg-violet-400/15'
+                : 'bg-amber-400/10 text-amber-400 border-amber-400/20 hover:bg-amber-400/15'
+            }`}>
             {saving ? '...' : mode === 'add' ? (isRecurring ? '⚡ Добави серия' : '+ Добави') : '💾 Запази'}
           </button>
         </div>
