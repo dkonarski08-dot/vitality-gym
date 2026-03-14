@@ -1,7 +1,7 @@
 // app/(dashboard)/pt/components/PTPackageModal.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { PTClient, PTPackage } from '../page'
 
 interface Props {
@@ -16,9 +16,9 @@ const SESSION_PRESETS = [8, 10, 15, 20, 30]
 const DURATION_PRESETS = [30, 60, 90, 180, 365]
 
 function addDays(dateStr: string, days: number): string {
-  const d = new Date(dateStr)
-  d.setDate(d.getDate() + days)
-  return d.toISOString().split('T')[0]
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const date = new Date(y, m - 1, d + days)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
 function formatDateBG(dateStr: string): string {
@@ -45,7 +45,11 @@ export default function PTPackageModal({ mode, client, pkg, onClose, onSaved }: 
   const expiresAt = startsOn && durationDays ? addDays(startsOn, Number(durationDays)) : ''
   const isValid = totalSessions > 0 && !!price && !!startsOn
 
-  // Clamp remaining when total changes
+  // Clamp remaining state down when total decreases so the +/- counter stays responsive
+  useEffect(() => {
+    if (totalSessions > 0) setRemaining(r => Math.min(r, totalSessions))
+  }, [totalSessions])
+
   const clampedRemaining = Math.min(remaining, totalSessions)
 
   async function handleSave() {
