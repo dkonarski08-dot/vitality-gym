@@ -1,8 +1,12 @@
 // app/(dashboard)/pt/components/PTClientList.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { PTClient, Instructor } from '../page'
+import PTClientDetail from './PTClientDetail'
+import PTClientModal from './PTClientModal'
+import PTPackageModal from './PTPackageModal'
+import { GOAL_LABELS, getInitials, getActivePkg, getUrgency, sortClients, Urgency } from '../ptConstants'
 
 interface Props {
   clients: PTClient[]
@@ -10,121 +14,249 @@ interface Props {
   userRole: string
   onEditClient: (client: PTClient) => void
   onRefresh: () => void
+  // Callbacks for modals opened from detail panel
+  onAddSessionForClient: (clientId: string, instructorId: string) => void
 }
 
-export default function PTClientList({ clients, instructors, userRole, onEditClient }: Props) {
+function matchesSearch(client: PTClient, q: string): boolean {
+  const lower = q.toLowerCase()
+  return (
+    client.name.toLowerCase().includes(lower) ||
+    (client.phone || '').includes(lower)
+  )
+}
+
+export default function PTClientList({ clients, instructors, userRole, onEditClient, onRefresh, onAddSessionForClient }: Props) {
   const [search, setSearch] = useState('')
-  const [filterInstructor, setFilterInstructor] = useState('all')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [packageModal, setPackageModal] = useState<{ client: PTClient } | null>(null)
+  const [detailRefreshKey, setDetailRefreshKey] = useState(0)
 
-  const filtered = clients.filter(c => {
-    const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) ||
-      (c.phone || '').includes(search)
-    const matchInstructor = filterInstructor === 'all' || c.instructor_id === filterInstructor
-    return matchSearch && matchInstructor
-  })
+  const filtered = useMemo(() => {
+    const list = search.trim() ? clients.filter(c => matchesSearch(c, search)) : clients
+    return sortClients(list)
+  }, [clients, search])
 
-  const activeCount = clients.filter(c => c.active).length
-  const lowPackageCount = clients.filter(c => {
-    const pkg = c.packages?.find(p => p.active)
-    return pkg && (pkg.total_sessions - pkg.used_sessions) <= 2
-  }).length
+  // Auto-select first active client; clear selection if selected client no longer exists
+  useEffect(() => {
+    if (selectedId) {
+      if (!clients.find(c => c.id === selectedId)) setSelectedId(null)
+      return
+    }
+    const first = filtered.find(c => c.active)
+    if (first) setSelectedId(first.id)
+  }, [clients, filtered, selectedId])
+
+  // Stats — memoized, depends only on clients prop
+  const { activeCount, expiredCount, expiringCount, inactiveCount } = useMemo(() => ({
+    activeCount:   clients.filter(c => c.active).length,
+    expiredCount:  clients.filter(c => c.active && getUrgency(c) === 'expired').length,
+    expiringCount: clients.filter(c => c.active && getUrgency(c) === 'expiring').length,
+    inactiveCount: clients.filter(c => !c.active).length,
+  }), [clients])
+
+  // Active and inactive groups for rendering with section labels
+  const activeList = filtered.filter(c => c.active)
+  const inactiveList = filtered.filter(c => !c.active)
+  const urgentList = activeList.filter(c => ['expired', 'low', 'expiring'].includes(getUrgency(c)))
+  const normalList = activeList.filter(c => ['ok', 'no_package'].includes(getUrgency(c)))
+
+  function handleAddPackage(client: PTClient) {
+    setPackageModal({ client })
+  }
 
   return (
-    <div className="space-y-4">
-      {/* Summary pills */}
-      <div className="flex gap-2 flex-wrap">
-        <div className="px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.06] text-xs">
-          <span className="text-white/50">Активни клиенти </span>
-          <span className="text-white font-semibold">{activeCount}</span>
+    <div className="flex flex-col gap-0 h-full">
+      {/* ── Stats bar ── */}
+      <div className="flex gap-px bg-white/[0.03] border border-white/[0.06] rounded-xl overflow-hidden mb-4">
+        <div className="flex-1 px-4 py-3 bg-white/[0.02]">
+          <div className="text-lg font-bold text-emerald-400">{activeCount}</div>
+          <div className="text-[10px] text-white/40 uppercase tracking-wider">Активни</div>
         </div>
-        {lowPackageCount > 0 && (
-          <div className="px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400">
-            ⚠️ {lowPackageCount} клиента с малко сесии
+        <div className="flex-1 px-4 py-3 bg-white/[0.02]">
+          <div className={`text-lg font-bold ${expiredCount > 0 ? 'text-red-400' : 'text-white/20'}`}>{expiredCount}</div>
+          <div className="text-[10px] text-white/40 uppercase tracking-wider">Изтекъл пакет</div>
+        </div>
+        <div className="flex-1 px-4 py-3 bg-white/[0.02]">
+          <div className={`text-lg font-bold ${expiringCount > 0 ? 'text-amber-400' : 'text-white/20'}`}>{expiringCount}</div>
+          <div className="text-[10px] text-white/40 uppercase tracking-wider">Изтичат скоро</div>
+        </div>
+        <div className="flex-1 px-4 py-3 bg-white/[0.02]">
+          <div className="text-lg font-bold text-white/25">{inactiveCount}</div>
+          <div className="text-[10px] text-white/40 uppercase tracking-wider">Неактивни</div>
+        </div>
+      </div>
+
+      {/* ── Master-detail layout ── */}
+      <div className="flex gap-3 min-h-0" style={{ height: 'calc(100vh - 280px)' }}>
+
+        {/* ── Left panel: client list ── */}
+        <div className="w-64 flex-shrink-0 flex flex-col bg-white/[0.02] border border-white/[0.06] rounded-xl overflow-hidden">
+          {/* Search */}
+          <div className="p-2.5 border-b border-white/[0.05]">
+            <div className="relative">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/25 text-xs">🔍</span>
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Търси по име или телефон..."
+                className="w-full h-8 pl-7 pr-3 rounded-lg bg-white/[0.04] border border-white/[0.07] text-white text-xs placeholder:text-white/25 focus:outline-none focus:border-amber-400/40"
+              />
+            </div>
           </div>
-        )}
-      </div>
 
-      {/* Filters */}
-      <div className="flex gap-2">
-        <input value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Търси клиент..."
-          className="flex-1 h-9 px-3 rounded-lg bg-white/5 border border-white/[0.08] text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-amber-400/50" />
-        {userRole !== 'instructor' && instructors.length > 1 && (
-          <select value={filterInstructor} onChange={e => setFilterInstructor(e.target.value)}
-            className="h-9 px-3 rounded-lg bg-white/5 border border-white/[0.08] text-white text-xs focus:outline-none">
-            <option value="all">Всички</option>
-            {instructors.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-          </select>
-        )}
-      </div>
+          {/* List */}
+          <div className="flex-1 overflow-y-auto">
+            {filtered.length === 0 && (
+              <div className="text-center py-8 text-white/25 text-xs">Няма резултати</div>
+            )}
 
-      {/* Client grid */}
-      {filtered.length === 0 ? (
-        <div className="text-center py-16 text-white/30 text-sm">Няма клиенти</div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-          {filtered.map(client => {
-            const pkg = client.packages?.find(p => p.active)
-            const remaining = pkg ? pkg.total_sessions - pkg.used_sessions : null
-            const isLow = remaining !== null && remaining <= 2
-            const isExpiringSoon = pkg?.expires_at && new Date(pkg.expires_at) < new Date(Date.now() + 14 * 86400000)
+            {/* Urgent */}
+            {urgentList.length > 0 && (
+              <>
+                <div className="px-3 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-red-400/60">
+                  ⚠ Нуждаят се от внимание
+                </div>
+                {urgentList.map(client => (
+                  <ClientRow
+                    key={client.id}
+                    client={client}
+                    selected={selectedId === client.id}
+                    onClick={() => setSelectedId(client.id)}
+                  />
+                ))}
+              </>
+            )}
 
-            return (
-              <div key={client.id} onClick={() => onEditClient(client)}
-                className={`bg-white/[0.02] border rounded-xl p-4 cursor-pointer hover:border-white/[0.15] transition-all ${
-                  !client.active ? 'opacity-40' : isLow ? 'border-red-500/20' : 'border-white/[0.06]'
-                }`}>
-                {/* Name & instructor */}
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <div className="text-sm font-semibold text-white">{client.name}</div>
-                    <div className="text-[10px] text-white/40 mt-0.5">{client.instructor?.name}</div>
+            {/* Normal active */}
+            {normalList.length > 0 && (
+              <>
+                {urgentList.length > 0 && (
+                  <div className="px-3 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-white/25">
+                    Активни
                   </div>
-                  {!client.active && <span className="text-[9px] text-white/30 border border-white/10 rounded px-1">неактивен</span>}
-                </div>
-
-                {/* Goal */}
-                {client.goal && (
-                  <div className="text-[11px] text-white/50 mb-2 truncate">🎯 {client.goal}</div>
                 )}
+                {normalList.map(client => (
+                  <ClientRow
+                    key={client.id}
+                    client={client}
+                    selected={selectedId === client.id}
+                    onClick={() => setSelectedId(client.id)}
+                  />
+                ))}
+              </>
+            )}
 
-                {/* Package status */}
-                <div className="mt-auto">
-                  {pkg ? (
-                    <div className="space-y-1">
-                      {/* Progress bar */}
-                      <div className="flex items-center justify-between text-[10px] mb-0.5">
-                        <span className="text-white/40">Пакет</span>
-                        <span className={isLow ? 'text-red-400 font-semibold' : 'text-white/60'}>
-                          {remaining} / {pkg.total_sessions}
-                        </span>
-                      </div>
-                      <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${isLow ? 'bg-red-400' : 'bg-amber-400'}`}
-                          style={{ width: `${Math.max(0, (pkg.used_sessions / pkg.total_sessions) * 100)}%` }} />
-                      </div>
-                      {isLow && <div className="text-[10px] text-red-400">⚠️ Препоръчай подновяване</div>}
-                      {isExpiringSoon && !isLow && (
-                        <div className="text-[10px] text-amber-400/70">
-                          ⏰ Изтича {new Date(pkg.expires_at!).toLocaleDateString('bg-BG')}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-[11px] text-white/25 border border-dashed border-white/10 rounded-lg px-2 py-1 text-center">
-                      Без активен пакет
-                    </div>
-                  )}
+            {/* Inactive */}
+            {inactiveList.length > 0 && (
+              <>
+                <div className="px-3 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-white/20">
+                  Неактивни
                 </div>
+                {inactiveList.map(client => (
+                  <ClientRow
+                    key={client.id}
+                    client={client}
+                    selected={selectedId === client.id}
+                    onClick={() => setSelectedId(client.id)}
+                  />
+                ))}
+              </>
+            )}
+          </div>
+        </div>
 
-                {/* Phone */}
-                {client.phone && (
-                  <div className="text-[10px] text-white/30 mt-2">{client.phone}</div>
-                )}
-              </div>
-            )
-          })}
+        {/* ── Right panel: client detail ── */}
+        <div className="flex-1 bg-white/[0.02] border border-white/[0.06] rounded-xl overflow-hidden flex flex-col">
+          {selectedId ? (
+            <PTClientDetail
+              clientId={selectedId}
+              clients={clients}
+              instructors={instructors}
+              userRole={userRole}
+              refreshKey={detailRefreshKey}
+              onEditClient={onEditClient}
+              onAddSession={onAddSessionForClient}
+              onAddPackage={handleAddPackage}
+              onRefresh={onRefresh}
+            />
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-white/25 text-sm">
+              Избери клиент от списъка →
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Package modal (opened from detail panel) ── */}
+      {packageModal && (
+        <PTPackageModal
+          mode="add"
+          client={packageModal.client}
+          onClose={() => setPackageModal(null)}
+          onSaved={async () => { setPackageModal(null); onRefresh(); setDetailRefreshKey(k => k + 1) }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Client row sub-component ──
+function ClientRow({ client, selected, onClick }: {
+  client: PTClient
+  selected: boolean
+  onClick: () => void
+}) {
+  const pkg = getActivePkg(client)
+  const remaining = pkg ? pkg.total_sessions - pkg.used_sessions : null
+  const urgency = getUrgency(client)
+
+  const avatarClass = !client.active
+    ? 'bg-white/[0.05] text-white/25'
+    : urgency === 'expired'
+      ? 'bg-red-500/15 text-red-400'
+      : urgency === 'low' || urgency === 'expiring'
+        ? 'bg-amber-400/15 text-amber-400'
+        : 'bg-emerald-500/15 text-emerald-400'
+
+  const badgeColor = !client.active || remaining === null
+    ? 'text-white/20'
+    : urgency === 'expired' || remaining === 0
+      ? 'text-red-400'
+      : urgency === 'low' || urgency === 'expiring'
+        ? 'text-amber-400'
+        : 'text-emerald-400'
+
+  const rowClass = [
+    'flex items-center gap-2 px-2.5 py-2 cursor-pointer transition-colors border-l-2',
+    selected
+      ? 'bg-amber-400/[0.06] border-amber-400'
+      : urgency === 'expired' && client.active
+        ? 'hover:bg-red-500/[0.04] border-red-500/30 bg-red-500/[0.02]'
+        : 'hover:bg-white/[0.03] border-transparent',
+    !client.active ? 'opacity-40' : '',
+  ].join(' ')
+
+  const goalLabel = client.goal ? (GOAL_LABELS[client.goal] ?? client.goal) : null
+
+  return (
+    <div className={rowClass} onClick={onClick}>
+      <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${avatarClass}`}>
+        {getInitials(client.name)}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-semibold text-white truncate">{client.name}</div>
+        <div className="text-[10px] text-white/35 truncate mt-0.5">
+          {urgency === 'expired' && client.active
+            ? <span className="text-red-400/70">Изтекъл пакет</span>
+            : goalLabel
+              ? goalLabel
+              : client.instructor?.name}
+        </div>
+      </div>
+      {remaining !== null && (
+        <div className={`text-xs font-bold flex-shrink-0 ${badgeColor}`}>
+          {remaining}
         </div>
       )}
     </div>

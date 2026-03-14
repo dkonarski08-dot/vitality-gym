@@ -1,7 +1,13 @@
 // src/types/database.ts
 // Core types matching Supabase schema
 
-export type UserRole = 'admin' | 'receptionist' | 'instructor'
+export type UserRole = 'admin' | 'receptionist' | 'instructor' | 'cleaning'
+
+export interface SessionState {
+  role: UserRole
+  name: string
+  employeeId: string | null
+}
 
 export interface StaffMember {
   id: string
@@ -148,4 +154,94 @@ export interface AppUser {
   is_active: boolean
   created_at: string
   updated_at: string
+}
+
+// ─── PT Module Types ───────────────────────────────────────────────────────
+
+export type SessionStatus = 'scheduled' | 'completed' | 'cancelled_early' | 'cancelled_late' | 'no_show'
+export type SessionType = 'personal' | 'pair' | 'online'
+export type BillingType = 'package' | 'individual' | 'free'
+
+export interface PTPackage {
+  id: string
+  gym_id: string
+  client_id: string
+  instructor_id: string | null
+  total_sessions: number
+  used_sessions: number
+  price_total: number | null
+  purchased_at: string
+  starts_on: string | null
+  duration_days: number | null
+  expires_at: string | null
+  active: boolean
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PTClient {
+  id: string
+  gym_id: string
+  name: string
+  phone: string
+  email: string | null
+  goal: string | null
+  health_notes: string | null
+  preferred_days: string[] | null
+  preferred_time_slot: string | null
+  source: string | null
+  active: boolean
+  instructor_id: string
+  created_at: string
+  updated_at: string
+  // Optional joined relations
+  instructor?: { id: string; name: string } | null
+  packages?: PTPackage[]
+}
+
+export interface PTSession {
+  id: string
+  gym_id: string
+  client_id: string
+  instructor_id: string
+  package_id: string | null
+  scheduled_at: string
+  duration_minutes: number
+  session_type: SessionType
+  status: SessionStatus
+  location: string | null
+  notes: string | null
+  billing_type: BillingType
+  session_price: number | null
+  cancelled_at: string | null
+  cancelled_by: string | null
+  recurrence_group_id: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+  // Optional joined relations
+  client?: { id: string; name: string; phone: string; goal?: string | null } | null
+  instructor?: { id: string; name: string } | null
+}
+
+export interface PTInquiry {
+  id: string
+  gym_id: string
+  name: string
+  phone: string
+  preferred_days: string[] | null
+  preferred_time_slot: string | null
+  goal: string | null
+  notes: string | null
+  source: string | null
+  status: 'pending' | 'done'
+  outcome: 'won' | 'lost' | null
+  lost_reason: string | null
+  created_by: string | null
+  assigned_to: string | null
+  created_at: string
+  updated_at: string
+  // Optional joined relation
+  assigned?: { id: string; name: string } | null
 }

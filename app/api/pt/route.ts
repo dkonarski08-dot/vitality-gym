@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin'
 import { GYM_ID } from '@/lib/constants'
+import { getTodayISO } from '@/lib/formatters'
+import { requireRole } from '@/lib/requireRole'
 
 // ─── GET ────────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
@@ -163,27 +165,35 @@ export async function GET(req: NextRequest) {
 
       // Monthly summary: last 6 months (always calendar months, independent of selected period)
       // Includes `lost` count so the table can compute won/(won+lost) conversion correctly.
-      const monthlySummary: Array<{ month: string; inquiries: number; won: number; lost: number; revenue: number }> = []
-      for (let i = 5; i >= 0; i--) {
+      // All 12 queries (2 per month × 6 months) execute in parallel — no N+1
+      const monthRanges = Array.from({ length: 6 }, (_, idx) => {
+        const i = 5 - idx
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-        const mStart = new Date(d.getFullYear(), d.getMonth(), 1).toISOString()
-        const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59).toISOString()
-        const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+        return {
+          monthKey: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+          mStart: new Date(d.getFullYear(), d.getMonth(), 1).toISOString(),
+          mEnd: new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59).toISOString(),
+        }
+      })
 
-        const [mInq, mPkg] = await Promise.all([
+      const monthlyResults = await Promise.all(
+        monthRanges.flatMap(({ mStart, mEnd }) => [
           supabase.from('pt_inquiries').select('id, outcome').eq('gym_id', GYM_ID).gte('created_at', mStart).lte('created_at', mEnd),
           supabase.from('pt_packages').select('price_total').eq('gym_id', GYM_ID).gte('purchased_at', mStart).lte('purchased_at', mEnd),
         ])
-        const inqData = mInq.data || []
-        const pkgData = mPkg.data || []
-        monthlySummary.push({
+      )
+
+      const monthlySummary: Array<{ month: string; inquiries: number; won: number; lost: number; revenue: number }> = monthRanges.map(({ monthKey }, idx) => {
+        const inqData = (monthlyResults[idx * 2].data || []) as Array<{ id: string; outcome: string }>
+        const pkgData = (monthlyResults[idx * 2 + 1].data || []) as Array<{ price_total: number | null }>
+        return {
           month: monthKey,
           inquiries: inqData.length,
           won: inqData.filter(i => i.outcome === 'won').length,
           lost: inqData.filter(i => i.outcome === 'lost').length,
           revenue: pkgData.reduce((a, p) => a + (p.price_total || 0), 0),
-        })
-      }
+        }
+      })
 
       return NextResponse.json({
         sessions: sessionsRes.data || [],
@@ -223,6 +233,8 @@ export async function GET(req: NextRequest) {
 
 // ─── POST ───────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const authError = requireRole(req, 'admin', 'receptionist', 'instructor')
+  if (authError) return authError
   try {
     const body = await req.json()
     const { action } = body
@@ -231,6 +243,23 @@ export async function POST(req: NextRequest) {
     if (action === 'add_client') {
       const { instructor_id, name, phone, email, goal, health_notes, preferred_days, preferred_time_slot, source } = body
       if (!instructor_id || !name) return NextResponse.json({ error: 'Липсват данни' }, { status: 400 })
+
+      // Phone duplicate check
+      if (phone) {
+        const { data: existing } = await supabase
+          .from('pt_clients')
+          .select('id, name')
+          .eq('gym_id', GYM_ID)
+          .eq('phone', phone.trim())
+          .maybeSingle()
+        if (existing) {
+          return NextResponse.json(
+            { error: 'DUPLICATE_PHONE', existingClient: existing },
+            { status: 409 }
+          )
+        }
+      }
+
       const { data, error } = await supabase.from('pt_clients').insert([{
         gym_id: GYM_ID, instructor_id, name, phone, email, goal, health_notes, preferred_days, preferred_time_slot, source
       }]).select().single()
@@ -255,7 +284,7 @@ export async function POST(req: NextRequest) {
       // DO NOT deactivate previous packages — multiple active packages are allowed
       const { data, error } = await supabase.from('pt_packages').insert([{
         gym_id: GYM_ID, client_id, instructor_id, total_sessions, used_sessions: 0,
-        price_total, purchased_at: purchased_at || new Date().toISOString().split('T')[0],
+        price_total, purchased_at: purchased_at || getTodayISO(),
         expires_at, notes, active: true, starts_on, duration_days
       }]).select().single()
       if (error) throw error
@@ -341,28 +370,16 @@ export async function POST(req: NextRequest) {
         if (body.cancelled_by) update.cancelled_by = body.cancelled_by
       }
 
-      // Handle package session counter
-      const { data: session } = await supabase.from('pt_sessions').select('status, package_id').eq('id', session_id).single()
-      const wasCompleted = session?.status === 'completed'
-      const nowCompleted = status === 'completed'
-
       const { error } = await supabase.from('pt_sessions').update(update).eq('id', session_id)
       if (error) throw error
-
-      if (session?.package_id && wasCompleted !== nowCompleted) {
-        const delta = nowCompleted ? 1 : -1
-        const { data: pkg } = await supabase.from('pt_packages').select('used_sessions').eq('id', session.package_id).single()
-        if (pkg) {
-          const updated = Math.max(0, pkg.used_sessions + delta)
-          await supabase.from('pt_packages').update({ used_sessions: updated }).eq('id', session.package_id)
-        }
-      }
 
       return NextResponse.json({ success: true })
     }
 
-    // ── Delete session ──
+    // ── Delete session (admin only) ──
     if (action === 'delete_session') {
+      const deleteSessionAuthErr = requireRole(req, 'admin')
+      if (deleteSessionAuthErr) return deleteSessionAuthErr
       const { session_id } = body
       const { error } = await supabase.from('pt_sessions').delete().eq('id', session_id)
       if (error) throw error
@@ -371,6 +388,8 @@ export async function POST(req: NextRequest) {
 
     // ── Edit package used_sessions (admin only) ──
     if (action === 'edit_package_used') {
+      const editPkgAuthErr = requireRole(req, 'admin')
+      if (editPkgAuthErr) return editPkgAuthErr
       const { package_id, used_sessions } = body
       if (package_id === undefined || used_sessions === undefined)
         return NextResponse.json({ error: 'Липсват данни' }, { status: 400 })
@@ -383,6 +402,8 @@ export async function POST(req: NextRequest) {
 
     // ── Edit full package (sessions, price, dates) ──
     if (action === 'edit_package') {
+      const editPkgAuthErr = requireRole(req, 'admin')
+      if (editPkgAuthErr) return editPkgAuthErr
       const { package_id, total_sessions, price_total, starts_on, duration_days, expires_at, remaining_sessions } = body
       if (!package_id) return NextResponse.json({ error: 'Липсват данни' }, { status: 400 })
 
@@ -446,6 +467,33 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
+  }
+}
+
+// ─── DELETE ──────────────────────────────────────────────────────────────────
+export async function DELETE(req: NextRequest) {
+  const authErr = requireRole(req, 'admin')
+  if (authErr) return authErr
+  try {
+    const { searchParams } = new URL(req.url)
+    const client_id = searchParams.get('client_id')
+    if (!client_id) return NextResponse.json({ error: 'Missing client_id' }, { status: 400 })
+
+    // pt_sessions and pt_inquiries lack ON DELETE CASCADE — delete manually first
+    // pt_packages has CASCADE so will be auto-deleted with the client
+    await supabase.from('pt_sessions').delete().eq('client_id', client_id).eq('gym_id', GYM_ID)
+    await supabase.from('pt_inquiries').delete().eq('client_id', client_id).eq('gym_id', GYM_ID)
+
+    const { error } = await supabase
+      .from('pt_clients')
+      .delete()
+      .eq('id', client_id)
+      .eq('gym_id', GYM_ID)
+
+    if (error) return NextResponse.json({ error: 'Грешка при изтриване' }, { status: 500 })
+    return NextResponse.json({ ok: true })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
   }

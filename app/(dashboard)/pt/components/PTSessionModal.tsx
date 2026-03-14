@@ -10,6 +10,7 @@ interface Props {
   prefillDate?: string
   prefillTime?: string
   prefillInstructorId?: string
+  prefillClientId?: string
   instructors: Instructor[]
   clients: PTClient[]
   userRole: string
@@ -28,7 +29,7 @@ const STATUS_OPTIONS: { value: SessionStatus; label: string; color: string }[] =
 
 const DURATIONS = [30, 45, 60, 90]
 
-export default function PTSessionModal({ mode, session, prefillDate, prefillTime, prefillInstructorId,
+export default function PTSessionModal({ mode, session, prefillDate, prefillTime, prefillInstructorId, prefillClientId,
   instructors, clients, userRole, userName, onClose, onSaved }: Props) {
 
   const today = new Date().toISOString().split('T')[0]
@@ -36,7 +37,7 @@ export default function PTSessionModal({ mode, session, prefillDate, prefillTime
   const [instructorId, setInstructorId] = useState(
     session?.instructor_id || prefillInstructorId || instructors[0]?.id || ''
   )
-  const [clientId, setClientId] = useState(session?.client_id || '')
+  const [clientId, setClientId] = useState(session?.client_id || prefillClientId || '')
   const [date, setDate] = useState(
     session ? new Date(session.scheduled_at).toISOString().split('T')[0] : (prefillDate || today)
   )
@@ -55,6 +56,7 @@ export default function PTSessionModal({ mode, session, prefillDate, prefillTime
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [isRecurring, setIsRecurring] = useState(false)
   const [recurringDay, setRecurringDay] = useState(1)
   const [recurringEnd, setRecurringEnd] = useState('')
@@ -95,72 +97,87 @@ export default function PTSessionModal({ mode, session, prefillDate, prefillTime
   const handleSave = async () => {
     if (!clientId || !instructorId || !date || !time) return
     setSaving(true)
-    const scheduled_at = new Date(`${date}T${time}:00`).toISOString()
+    setSaveError(null)
+    try {
+      const scheduled_at = new Date(`${date}T${time}:00`).toISOString()
 
-    const resolvedPackageId = billingType.startsWith('package_')
-      ? billingType.replace('package_', '')
-      : null
-    const resolvedBillingType = billingType.startsWith('package_')
-      ? 'package'
-      : billingType as 'individual' | 'free'
+      const resolvedPackageId = billingType.startsWith('package_')
+        ? billingType.replace('package_', '')
+        : null
+      const resolvedBillingType = billingType.startsWith('package_')
+        ? 'package'
+        : billingType as 'individual' | 'free'
 
-    if (mode === 'add') {
-      if (isRecurring) {
-        await fetch('/api/pt', {
+      if (mode === 'add') {
+        if (isRecurring) {
+          const res = await fetch('/api/pt', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'add_recurring',
+              instructor_id: instructorId, client_id: clientId,
+              package_id: resolvedPackageId,
+              billing_type: resolvedBillingType,
+              session_price: resolvedBillingType === 'individual' && sessionPrice ? Number(sessionPrice) : null,
+              day_of_week: recurringDay,
+              time_of_day: time,
+              duration_minutes: duration,
+              session_type: sessionType,
+              location, starts_on: date,
+              ends_on: recurringEnd || null,
+              created_by: userName,
+            })
+          })
+          if (!res.ok) throw new Error('Грешка при добавяне на серия тренировки')
+        } else {
+          const res = await fetch('/api/pt', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'add_session',
+              instructor_id: instructorId, client_id: clientId,
+              package_id: resolvedPackageId,
+              billing_type: resolvedBillingType,
+              session_price: resolvedBillingType === 'individual' && sessionPrice ? Number(sessionPrice) : null,
+              scheduled_at, duration_minutes: duration,
+              session_type: sessionType, location, notes,
+              created_by: userName,
+            })
+          })
+          if (!res.ok) throw new Error('Грешка при добавяне на тренировка')
+        }
+      } else if (session) {
+        const res = await fetch('/api/pt', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            action: 'add_recurring',
-            instructor_id: instructorId, client_id: clientId,
-            package_id: resolvedPackageId,
-            billing_type: resolvedBillingType,
-            session_price: resolvedBillingType === 'individual' && sessionPrice ? Number(sessionPrice) : null,
-            day_of_week: recurringDay,
-            time_of_day: time,
-            duration_minutes: duration,
-            session_type: sessionType,
-            location, starts_on: date,
-            ends_on: recurringEnd || null,
-            created_by: userName,
+            action: 'update_session', session_id: session.id,
+            status, notes, scheduled_at, duration_minutes: duration, location,
+            cancelled_by: ['cancelled_early','cancelled_late','no_show'].includes(status) ? 'receptionist' : undefined,
           })
         })
-      } else {
-        await fetch('/api/pt', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'add_session',
-            instructor_id: instructorId, client_id: clientId,
-            package_id: resolvedPackageId,
-            billing_type: resolvedBillingType,
-            session_price: resolvedBillingType === 'individual' && sessionPrice ? Number(sessionPrice) : null,
-            scheduled_at, duration_minutes: duration,
-            session_type: sessionType, location, notes,
-            created_by: userName,
-          })
-        })
+        if (!res.ok) throw new Error('Грешка при запазване на тренировка')
       }
-    } else if (session) {
-      await fetch('/api/pt', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'update_session', session_id: session.id,
-          status, notes, scheduled_at, duration_minutes: duration, location,
-          cancelled_by: ['cancelled_early','cancelled_late','no_show'].includes(status) ? 'receptionist' : undefined,
-        })
-      })
+      onSaved()
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Грешка при запазване. Опитайте пак.')
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
-    onSaved()
   }
 
   const handleDelete = async () => {
     if (!session) return
     setDeleting(true)
-    await fetch('/api/pt', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'delete_session', session_id: session.id })
-    })
-    setDeleting(false)
-    onSaved()
+    try {
+      const res = await fetch('/api/pt', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete_session', session_id: session.id })
+      })
+      if (!res.ok) throw new Error('Грешка при изтриване')
+      onSaved()
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Грешка при изтриване. Опитайте пак.')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const DAYS_BG = ['Нд','Пн','Вт','Ср','Чт','Пт','Сб']
@@ -384,6 +401,13 @@ export default function PTSessionModal({ mode, session, prefillDate, prefillTime
             placeholder="Упражнения, прогрес..."
             className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/[0.08] text-white text-sm placeholder:text-white/20 focus:outline-none focus:border-amber-400/50 resize-none" />
         </div>
+
+        {/* Error banner */}
+        {saveError && (
+          <div className="mb-3 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400">
+            {saveError}
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex gap-2">

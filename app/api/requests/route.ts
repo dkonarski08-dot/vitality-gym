@@ -3,9 +3,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin'
 import { GYM_ID } from '@/lib/constants'
 import { requireRole, getSession } from '@/lib/requireRole'
+import { getCurrentMonthISO } from '@/lib/formatters'
 import { serverError } from '@/lib/serverError'
 
 export async function GET(req: NextRequest) {
+  const authError = requireRole(req, 'admin', 'receptionist', 'instructor')
+  if (authError) return authError
   try {
     const { searchParams } = new URL(req.url)
     const type = searchParams.get('type')
@@ -157,7 +160,7 @@ export async function POST(req: NextRequest) {
     // ── create_draft ─────────────────────────────────────────────────────────
     if (action === 'create_draft') {
       const { created_by } = body as { created_by: string }
-      const month = new Date().toISOString().slice(0, 7)
+      const month = getCurrentMonthISO()
 
       // Guard: check if draft already exists for this month
       const { data: existing } = await supabase

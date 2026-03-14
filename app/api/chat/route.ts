@@ -4,12 +4,14 @@ import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin'
 import { GYM_ID } from '@/lib/constants'
+import { getTodayISO } from '@/lib/formatters'
+import { requireRole } from '@/lib/requireRole'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
 // Build gym context from real tables only
 async function getGymContextSummary() {
-  const today = new Date().toISOString().split('T')[0]
+  const today = getTodayISO()
   const thisMonth = today.substring(0, 7) + '-01'
 
   const [
@@ -289,6 +291,8 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
 }
 
 export async function POST(req: NextRequest) {
+  const authError = requireRole(req, 'admin')
+  if (authError) return authError
   try {
     const { message, history = [] } = await req.json()
 
@@ -309,7 +313,7 @@ export async function POST(req: NextRequest) {
 - Преди да създадеш/обновиш нещо, потвърди ако не е 100% ясно
 - Когато използваш инструмент, кажи накратко какво правиш
 - Бъди кратък и професионален
-- Днешна дата: ${new Date().toISOString().split('T')[0]}
+- Днешна дата: ${getTodayISO()}
 
 Текущо резюме на фитнеса:
 - Активни служители: ${gymData.employeeCount}
@@ -325,7 +329,7 @@ export async function POST(req: NextRequest) {
     const messages: Anthropic.MessageParam[] = [...history, { role: 'user', content: message }]
 
     let response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model: 'claude-sonnet-4-6',
       max_tokens: 2048,
       system: systemPrompt,
       tools,
@@ -350,7 +354,7 @@ export async function POST(req: NextRequest) {
       assistantMessages.push({ role: 'user', content: toolResults })
 
       response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-5-20250929',
+        model: 'claude-sonnet-4-6',
         max_tokens: 2048,
         system: systemPrompt,
         tools,
