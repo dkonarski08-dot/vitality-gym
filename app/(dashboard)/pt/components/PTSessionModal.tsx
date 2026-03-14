@@ -192,8 +192,8 @@ export default function PTSessionModal({ mode, session, prefillDate, prefillTime
             <option value="">— избери клиент —</option>
             {filteredClients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          {/* Package / billing type picker */}
-          {clientId && (
+          {/* Package / billing type picker — add mode only */}
+          {mode === 'add' && clientId && (
             <div className="mt-2 space-y-1.5">
               <div className="text-[9px] font-semibold uppercase tracking-wider text-white/30 mb-1">
                 Избери пакет за тази тренировка
