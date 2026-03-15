@@ -158,71 +158,122 @@ export interface AppUser {
 
 // ─── PT Module Types ───────────────────────────────────────────────────────
 
-export type SessionStatus = 'scheduled' | 'completed' | 'cancelled_early' | 'cancelled_late' | 'no_show'
-export type SessionType = 'personal' | 'pair' | 'online'
-export type BillingType = 'package' | 'individual' | 'free'
-
-export interface PTPackage {
-  id: string
-  gym_id: string
-  client_id: string
-  instructor_id: string | null
-  total_sessions: number
-  used_sessions: number
-  price_total: number | null
-  purchased_at: string
-  starts_on: string | null
-  duration_days: number | null
-  expires_at: string | null
-  active: boolean
-  notes: string | null
-  created_at: string
-  updated_at: string
-}
-
-export interface PTClient {
-  id: string
-  gym_id: string
-  name: string
-  phone: string
-  email: string | null
-  goal: string | null
-  health_notes: string | null
-  preferred_days: string[] | null
-  preferred_time_slot: string | null
-  source: string | null
-  active: boolean
-  instructor_id: string
-  created_at: string
-  updated_at: string
-  // Optional joined relations
-  instructor?: { id: string; name: string } | null
-  packages?: PTPackage[]
-}
+// Single source of truth — DB CHECK constraint mirrors this array
+export const PT_SESSION_STATUSES = ['scheduled', 'completed', 'cancelled', 'no_show'] as const
+export type PTSessionStatus = typeof PT_SESSION_STATUSES[number]
 
 export interface PTSession {
   id: string
   gym_id: string
+  membership_id: string
   client_id: string
   instructor_id: string
-  package_id: string | null
   scheduled_at: string
   duration_minutes: number
-  session_type: SessionType
-  status: SessionStatus
-  location: string | null
+  status: PTSessionStatus
   notes: string | null
-  billing_type: BillingType
-  session_price: number | null
-  cancelled_at: string | null
-  cancelled_by: string | null
-  recurrence_group_id: string | null
-  created_by: string | null
+  completed_by: string | null
   created_at: string
   updated_at: string
-  // Optional joined relations
-  client?: { id: string; name: string; phone: string; goal?: string | null } | null
-  instructor?: { id: string; name: string } | null
+}
+
+export interface PTSessionWithDetails extends PTSession {
+  client_name: string
+  client_phone: string | null
+  instructor_name: string
+  membership_name: string
+  sessions_remaining: number
+  sessions_total: number
+}
+
+// PT client with active PT membership — for read-only client list in PT schedule
+export interface PTActiveClient {
+  id: string
+  name: string
+  phone: string | null
+  membership_id: string
+  membership_name: string
+  sessions_total: number
+  sessions_used: number
+  instructor_id: string
+  instructor_name: string
+  expires_at: string | null
+}
+
+// ─── Sales & Inventory Types ───────────────────────────────────────────────
+
+export type PaymentMethod = 'cash' | 'card'
+
+export interface Sale {
+  id: string
+  gym_id: string
+  sale_date: string
+  sale_time: string
+  total_amount: number
+  payment_method: PaymentMethod
+  member_id: string | null
+  staff_name: string
+  notes: string | null
+  voided: boolean
+  voided_by: string | null
+  voided_at: string | null
+  created_at: string
+  sale_items?: SaleItem[]
+}
+
+export interface SaleItem {
+  id: string
+  sale_id: string
+  product_id: string | null
+  product_name: string
+  category: string | null
+  quantity: number
+  unit: string | null
+  unit_price: number
+  total_price: number
+}
+
+export interface InventoryProduct {
+  product_id: string
+  gym_id: string
+  product_name: string
+  category: string | null
+  unit: string | null
+  selling_price: number | null
+  barcode: string | null
+  min_stock: number
+  active_for_sale: boolean
+  current_stock: number
+  low_stock: boolean
+}
+
+export type AdjustmentReason = 'damage' | 'theft' | 'count' | 'return' | 'other'
+
+export interface InventoryAdjustment {
+  id: string
+  gym_id: string
+  product_id: string | null
+  product_name: string
+  quantity_delta: number
+  reason: AdjustmentReason
+  staff_name: string
+  notes: string | null
+  created_at: string
+}
+
+// Delivery product with selling fields (extended)
+export interface DeliveryProduct {
+  id: string
+  gym_id: string
+  name: string
+  category: string | null
+  unit: string | null
+  last_price: number | null
+  order_count: number
+  selling_price: number | null
+  barcode: string | null
+  min_stock: number
+  active_for_sale: boolean
 }
 
 export interface PTInquiry {
@@ -244,4 +295,85 @@ export interface PTInquiry {
   updated_at: string
   // Optional joined relation
   assigned?: { id: string; name: string } | null
+}
+
+// ─── Clients & Services Module ────────────────────────────────────────────────
+
+export type DiscountTier = 'none' | 'standard' | 'vip'
+
+export interface Client {
+  id: string
+  gym_id: string
+  name: string
+  phone: string
+  discount_tier: DiscountTier
+  notes: string | null
+  created_at: string
+}
+
+export type BusinessUnit = 'gym' | 'hall'
+export type IntegrationType = 'membership' | 'pt_package' | 'pt_single' | 'service_record' | 'hall_entry'
+
+export interface ServiceType {
+  id: string
+  gym_id: string
+  name: string
+  price: number
+  category: string
+  business_unit: BusinessUnit
+  integration_type: IntegrationType
+  duration_days: number | null
+  active: boolean
+  created_at: string
+}
+
+export interface ServiceRecord {
+  id: string
+  gym_id: string
+  client_id: string
+  service_type_id: string | null
+  sale_id: string | null
+  starts_at: string | null
+  ends_at: string | null
+  details: Record<string, unknown> | null
+  created_at: string
+}
+
+export interface OpenTabItem {
+  type: 'product' | 'service'
+  id: string
+  name: string
+  unit_price: number
+  quantity: number
+  total_price: number
+  category: string
+  integration_type?: IntegrationType
+  starts_at?: string
+}
+
+export interface OpenTab {
+  id: string
+  gym_id: string
+  business_unit: BusinessUnit
+  client_id: string | null
+  has_services: boolean
+  items: OpenTabItem[]
+  total_amount: number
+  discount_amount: number
+  created_by: string
+  created_at: string
+  client?: Client
+}
+
+export interface ClientMembership {
+  id: string
+  gym_id: string
+  client_id: string
+  service_type_id: string | null
+  status: 'active' | 'expired' | 'cancelled'
+  started_at: string
+  ends_at: string | null
+  notes: string | null
+  created_at: string
+  service_type?: ServiceType
 }
