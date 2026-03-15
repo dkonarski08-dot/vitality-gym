@@ -32,4 +32,4 @@ export interface UnifiedCartItem {
   ends_at?: string
 }
 
-export type SalesTab = 'new' | 'history' | 'report' | 'open_tabs' | 'catalog'
+export type SalesTab = 'pos' | 'services' | 'new' | 'history' | 'report' | 'open_tabs' | 'catalog'
