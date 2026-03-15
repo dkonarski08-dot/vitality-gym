@@ -32,7 +32,7 @@ export function useShifts() {
   const [shifts, setShifts] = useState<Shift[]>([])
   const [holidays, setHolidays] = useState<Holiday[]>([])
   const [settings, setSettings] = useState<GymSettings | null>(null)
-  const { userRole } = useSession()
+  const { userRole, userName, employeeId } = useSession()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -298,7 +298,7 @@ export function useShifts() {
   return {
     // data
     staff, shifts, holidays, settings, loading, saving,
-    year, month, days, monthLabel, today, userRole,
+    year, month, days, monthLabel, today, userRole, userName, employeeId,
     staffSummary, missingByDate,
     // edit shift modal
     editCell, setEditCell,

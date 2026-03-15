@@ -15,7 +15,17 @@ interface Props {
 }
 
 const LEAVE_TYPE_SET = new Set(LEAVE_TYPES.map(l => l.type))
+const VISIBLE_ROLES = new Set(['Reception', 'instructor'])
 
+function shiftHours(start: string, end: string): string {
+  const [sh, sm] = start.split(':').map(Number)
+  const [eh, em] = end.split(':').map(Number)
+  const mins = (eh * 60 + em) - (sh * 60 + sm)
+  if (mins <= 0) return ''
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return m === 0 ? `${h}ч` : `${h}ч${m}м`
+}
 
 function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -47,20 +57,22 @@ function getWeeks(days: Date[]): Date[][] {
 
 export function ReceptionistWeekView({ staff, shifts, year, month, days, today }: Props) {
   const weeks = getWeeks(days)
-  const staffById = useMemo(() => new Map(staff.map(s => [s.id, s])), [staff])
+  const visibleStaff = useMemo(() => staff.filter(s => VISIBLE_ROLES.has(s.role)), [staff])
+  const staffById = useMemo(() => new Map(visibleStaff.map(s => [s.id, s])), [visibleStaff])
 
-  // Build per-date shift list: exclude leave types, sort by start_time ascending
+  // Build per-date shift list: exclude leave types, only visible roles, sort by start_time ascending
   const shiftsByDate = useMemo(() => {
     const map = new Map<string, Shift[]>()
     for (const shift of shifts) {
       if (LEAVE_TYPE_SET.has(shift.shift_type)) continue
+      if (!staffById.has(shift.staff_id)) continue
       map.set(shift.date, [...(map.get(shift.date) ?? []), shift])
     }
     for (const [date, dayShifts] of map) {
       map.set(date, [...dayShifts].sort((a, b) => a.start_time.localeCompare(b.start_time)))
     }
     return map
-  }, [shifts])
+  }, [shifts, staffById])
 
   return (
     <div className="space-y-3">
@@ -111,8 +123,9 @@ export function ReceptionistWeekView({ staff, shifts, year, month, days, today }
                         className={`px-2 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.06] border-l-2 ${roleLeftBorder(member.role)}`}
                       >
                         <div className="text-[11px] font-medium text-white truncate">{member.name}</div>
-                        <div className="text-[10px] text-white/60">
-                          {shift.start_time.slice(0, 5)} – {shift.end_time.slice(0, 5)}
+                        <div className="text-[10px] text-white/60 flex items-center gap-1.5">
+                          <span>{shift.start_time.slice(0, 5)} – {shift.end_time.slice(0, 5)}</span>
+                          <span className="text-white/35">{shiftHours(shift.start_time, shift.end_time)}</span>
                         </div>
                       </div>
                     )

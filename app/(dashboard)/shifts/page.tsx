@@ -40,9 +40,11 @@ export default function ShiftsPage() {
             <div className="w-5 h-5 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
           </div>
         ) : (<>
-          {s.userRole === 'receptionist' ? (
+          {(s.userRole === 'receptionist' || s.userRole === 'instructor') ? (
             <ReceptionistWeekView
-              staff={s.staff}
+              staff={s.userRole === 'instructor'
+                ? s.staff.filter(m => s.employeeId ? m.id === s.employeeId : m.name === s.userName)
+                : s.staff}
               shifts={s.shifts}
               year={s.year}
               month={s.month}

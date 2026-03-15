@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin'
+import { GYM_ID } from '@/lib/constants'
 
 // =============================================
 // AI CLASS NAME NORMALIZER
 // =============================================
-const GYM_ID = '00000000-0000-0000-0000-000000000001'
 
 async function normalizeClassNamesWithAI(
   gymrealmNames: string[],
@@ -122,10 +122,13 @@ function normalizeClassName(name: string): string {
 // =============================================
 // GYMREALM PARSER
 // =============================================
-function parseGymRealm(buffer: ArrayBuffer) {
-  const wb = XLSX.read(buffer, { type: 'array' })
-  const ws = wb.Sheets[wb.SheetNames[0]]
-  const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+async function parseGymRealm(buffer: ArrayBuffer) {
+  const workbook = new ExcelJS.Workbook()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await workbook.xlsx.load(new Uint8Array(buffer) as any)
+  const ws = workbook.worksheets[0]
+  const rows: unknown[][] = []
+  ws.eachRow((row) => { rows.push((row.values as unknown[]).slice(1)) })
 
   let headerIdx = -1
   for (let i = 0; i < rows.length; i++) {
@@ -188,10 +191,13 @@ function parseGymRealm(buffer: ArrayBuffer) {
 // =============================================
 // MULTISPORT PARSER
 // =============================================
-function parseMultisport(buffer: ArrayBuffer) {
-  const wb = XLSX.read(buffer, { type: 'array' })
-  const ws = wb.Sheets[wb.SheetNames[0]]
-  const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+async function parseMultisport(buffer: ArrayBuffer) {
+  const workbook = new ExcelJS.Workbook()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await workbook.xlsx.load(new Uint8Array(buffer) as any)
+  const ws = workbook.worksheets[0]
+  const rows: unknown[][] = []
+  ws.eachRow((row) => { rows.push((row.values as unknown[]).slice(1)) })
 
   const results: Record<string, { visits: number; amount_eur: number }> = {}
 
@@ -209,6 +215,11 @@ function parseMultisport(buffer: ArrayBuffer) {
 // =============================================
 // MAIN HANDLER
 // =============================================
+function getPrevMonth(month: string): string {
+  const d = new Date(month)
+  d.setMonth(d.getMonth() - 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+}
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData()
@@ -232,12 +243,12 @@ export async function POST(req: NextRequest) {
 
     // Parse all files first
     const gymrealmBuffer = await gymrealmFile.arrayBuffer()
-    const gymrealmData = parseGymRealm(gymrealmBuffer)
+    const gymrealmData = await parseGymRealm(gymrealmBuffer)
 
     let multisportData: Record<string, { visits: number; amount_eur: number }> = {}
     if (multisportFile) {
       const buf = await multisportFile.arrayBuffer()
-      multisportData = parseMultisport(buf)
+      multisportData = await parseMultisport(buf)
     }
 
     let coolfitData: Record<string, { visits: number; rate_eur: number; total_eur: number }> = {}
@@ -312,18 +323,20 @@ export async function POST(req: NextRequest) {
 
       results.push({ class: className, cash: data.cash, sub: data.subscription, ms: data.multisport, cf: data.coolfit, unk: data.unknown })
 
-      // Client visits
-      for (const [clientName, visitCount] of Object.entries(data.clients)) {
-        await supabase.from('hall_client_visits').upsert([{
-          class_id: classRecord.id, month, client_name: clientName, visit_count: visitCount,
-        }], { onConflict: 'class_id,month,client_name' })
+      // Client visits — batch
+      const clientVisitRows = Object.entries(data.clients).map(([clientName, visitCount]) => ({
+        class_id: classRecord.id, month, client_name: clientName, visit_count: visitCount,
+      }))
+      if (clientVisitRows.length > 0) {
+        await supabase.from('hall_client_visits').upsert(clientVisitRows, { onConflict: 'class_id,month,client_name' })
       }
 
-      // No-shows
-      for (const [clientName, noshowCount] of Object.entries(data.noshows)) {
-        await supabase.from('hall_client_noshows').upsert([{
-          class_id: classRecord.id, month, client_name: clientName, noshow_count: noshowCount,
-        }], { onConflict: 'class_id,month,client_name' })
+      // No-shows — batch
+      const noshowRows = Object.entries(data.noshows).map(([clientName, noshowCount]) => ({
+        class_id: classRecord.id, month, client_name: clientName, noshow_count: noshowCount,
+      }))
+      if (noshowRows.length > 0) {
+        await supabase.from('hall_client_noshows').upsert(noshowRows, { onConflict: 'class_id,month,client_name' })
       }
 
       // Reconciliation — Multisport
@@ -356,10 +369,59 @@ export async function POST(req: NextRequest) {
 
     await supabase.from('hall_month_status').upsert([{ month, is_locked: false }], { onConflict: 'month' })
 
+    // Anomaly detection
+    const { data: prevMonth } = await supabase
+      .from('hall_attendance')
+      .select('*, hall_classes(name)')
+      .eq('month', getPrevMonth(month))
+
+    let anomalies: string[] = []
+
+    if (prevMonth && prevMonth.length > 0) {
+      const prevMap: Record<string, number> = {}
+      for (const r of prevMonth) {
+        if (r.hall_classes?.name) prevMap[r.hall_classes.name] = r.total_visits || 0
+      }
+
+      const anomalyLines = results.map(r => {
+        const prev = prevMap[r.class] || 0
+        const curr = r.cash + r.sub + r.ms + r.cf
+        const pct = prev > 0 ? Math.round(((curr - prev) / prev) * 100) : null
+        return `${r.class}: ${curr} посещения (пред. месец: ${prev}${pct !== null ? `, ${pct > 0 ? '+' : ''}${pct}%` : ', няма данни'})`
+      }).join('\n')
+
+      try {
+        const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': process.env.ANTHROPIC_API_KEY || '',
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 300,
+            messages: [{
+              role: 'user',
+              content: `Анализирай посещенията на групови тренировки и посочи само реални аномалии (промени над 20%). Бъди кратък — максимум 3 изречения на български.
+
+${anomalyLines}`
+            }]
+          })
+        })
+        const aiData = await aiRes.json()
+        const aiText = aiData.content?.[0]?.text || ''
+        if (aiText) anomalies = [aiText]
+      } catch (e) {
+        console.error('Anomaly detection failed:', e)
+      }
+    }
+
     return NextResponse.json({
       success: true, month,
       classes_processed: results.length,
       results, reconciliation: reconciliationResults,
+      anomalies,
     })
 
   } catch (err) {

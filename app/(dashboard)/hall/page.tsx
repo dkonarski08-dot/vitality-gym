@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useHallData } from './hooks/useHallData'
 import { useAttendance } from './hooks/useAttendance'
 import { useImport } from './hooks/useImport'
@@ -15,6 +16,22 @@ import { ConfigTab } from './components/ConfigTab'
 
 
 export default function HallPage() {
+  const router = useRouter()
+
+  useEffect(() => {
+    const stored = localStorage.getItem('vitality_session')
+    if (stored) {
+      try {
+        const { role } = JSON.parse(stored)
+        if (role !== 'admin') {
+          router.replace('/shifts')
+        }
+      } catch {
+        router.replace('/login')
+      }
+    }
+  }, [router])
+
   const [activeTab, setActiveTab] = useState<TabKey>('attendance')
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const n = new Date()
